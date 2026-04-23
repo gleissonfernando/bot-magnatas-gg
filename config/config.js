@@ -9,6 +9,7 @@ module.exports = {
     bannerUrl: process.env.DISCORD_BANNER_URL,
     welcomeChannelId: '1484488134602526833',
     goodbyeChannelId: '1484488134602526834',
+    developerId: '761011766440230932',
     oauth2: {
         clientId: process.env.DISCORD_CLIENT_ID,
         clientSecret: process.env.DISCORD_CLIENT_SECRET,
