@@ -188,7 +188,19 @@ client.on('voiceStateUpdate', (oldState, newState) => {
 });
 
 // Iniciar o bot
-client.login(config.token);
+client.login(config.token).then(() => {
+    console.log('🤖 Bot logado com sucesso!');
+}).catch(err => {
+    console.error('❌ Erro ao logar o bot:', err);
+});
+
+// Iniciar o servidor de API do Painel
+try {
+    const backend = require('./backend/index.js');
+    console.log('🌐 Servidor de API do Painel iniciado.');
+} catch (err) {
+    console.error('❌ Erro ao iniciar o servidor de API:', err);
+}
 
 // Exportar o cliente para uso em outros módulos
 module.exports = client;
