@@ -120,7 +120,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     // VERIFICAÇÃO DE DESENVOLVEDOR MESTRE
-    const DEVELOPER_ID = '761011766440230932';
+    const DEVELOPER_ID = process.env.DEVELOPER_ID || '';
     const isDeveloper = interaction.user.id === DEVELOPER_ID;
 
     // 1. Verificar se o bot está desativado para este servidor

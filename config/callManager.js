@@ -34,7 +34,7 @@ module.exports = {
                 const channel = await guild.channels.create({
                     name: `📞 Call de ${user.username}`,
                     type: ChannelType.GuildVoice,
-                    parent: '1495977012643495996', // ID da Categoria Específica
+                    parent: process.env.CALL_CATEGORY_ID || null, // ID da Categoria Específica
                     permissionOverwrites: [
                         {
                             id: guild.id,
@@ -73,7 +73,7 @@ module.exports = {
         if (!callData) return interaction.reply({ content: '❌ Esta não é uma call temporária gerenciável.', ephemeral: true });
 
         // VERIFICAÇÃO DE DESENVOLVEDOR MESTRE (Permissão Global)
-        const DEVELOPER_ID = '761011766440230932';
+        const DEVELOPER_ID = process.env.DEVELOPER_ID || '';
         const isDeveloper = user.id === DEVELOPER_ID;
 
         if (callData.ownerId !== user.id && !isDeveloper) {
@@ -123,7 +123,7 @@ module.exports = {
         if (!voiceChannel) return;
 
         const callData = activeCalls.get(voiceChannel.id);
-        const DEVELOPER_ID = '761011766440230932';
+        const DEVELOPER_ID = process.env.DEVELOPER_ID || '';
         if (!callData || (callData.ownerId !== user.id && user.id !== DEVELOPER_ID)) return;
 
         if (customId === 'modal_call_limit') {
