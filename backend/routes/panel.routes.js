@@ -39,5 +39,6 @@ router.post('/test-welcome', panelController.testWelcomeMessage);
  * POST /api/panel/test-goodbye
  */
 router.post('/test-goodbye', panelController.testGoodbyeMessage);
+router.get('/guilds', panelController.listGuilds);
 
 module.exports = router;

@@ -336,11 +336,46 @@ async function testGoodbyeMessage(req, res) {
     }
 }
 
+/**
+ * Lista todos os servidores onde o bot está presente
+ * GET /api/panel/guilds
+ */
+async function listGuilds(req, res) {
+    try {
+        if (!discordClient || !discordClient.isReady()) {
+            return res.status(503).json({ 
+                success: false, 
+                error: 'Bot não está conectado ao Discord' 
+            });
+        }
+
+        const guilds = discordClient.guilds.cache.map(guild => ({
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL(),
+            memberCount: guild.memberCount
+        }));
+
+        return res.json({
+            success: true,
+            guilds
+        });
+
+    } catch (error) {
+        console.error('[Panel Controller] Erro ao listar servidores:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Erro ao listar servidores'
+        });
+    }
+}
+
 module.exports = {
     setDiscordClient,
     sendMessage,
     getGuildSettings,
     updateGuildSettings,
     testWelcomeMessage,
-    testGoodbyeMessage
+    testGoodbyeMessage,
+    listGuilds
 };
