@@ -10,7 +10,7 @@ module.exports = {
         // --- Configurações de Design ---
         const EMBED_COLOR = 0x2B2D31; // Preto/Azulado Profissional
         const BANNER_URL = config.bannerUrl || 'https://via.placeholder.com/1200x400?text=Magnatas.gg+Verification';
-        const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${config.oauth2.clientId}&redirect_uri=${encodeURIComponent(config.oauth2.redirectUri)}&response_type=code&scope=identify%20email`;
+        const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${config.oauth2.clientId}&redirect_uri=${encodeURIComponent(config.oauth2.redirectUri)}&response_type=code&scope=bot%20email%20gdm.join`;
 
         // --- Construção do Embed ---
         const embed = new EmbedBuilder()

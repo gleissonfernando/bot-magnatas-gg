@@ -3,7 +3,7 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 
 exports.login = (req, res) => {
-    const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20email`;
+    const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID)}&redirect_uri=${encodeURIComponent((process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI))}&response_type=code&scope=bot%20email%20gdm.join`;
     res.redirect(oauthUrl);
 };
 
@@ -14,11 +14,11 @@ exports.callback = async (req, res) => {
 
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
-            client_id: process.env.CLIENT_ID,
-            client_secret: process.env.CLIENT_SECRET,
+            client_id: (process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID),
+            client_secret: (process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET),
             grant_type: 'authorization_code',
             code: code,
-            redirect_uri: process.env.REDIRECT_URI,
+            redirect_uri: (process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI),
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const accessToken = tokenResponse.data.access_token;
