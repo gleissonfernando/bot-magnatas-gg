@@ -8,9 +8,10 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
         // --- Configurações de Design ---
-        const EMBED_COLOR = 0x2B2D31; // Preto/Azulado Profissional
         const BANNER_URL = config.bannerUrl || 'https://via.placeholder.com/1200x400?text=Magnatas.gg+Verification';
-        const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${config.oauth2.clientId}&redirect_uri=${encodeURIComponent(config.oauth2.redirectUri)}&response_type=code&scope=bot%20email%20gdm.join`;
+        
+        // Corrigido: Removido escopo 'bot' que causava erro de formulário inválido ao tentar usar link de autorização de bot em botão
+        const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${config.oauth2.clientId}&redirect_uri=${encodeURIComponent(config.oauth2.redirectUri)}&response_type=code&scope=identify%20email`;
 
         // --- Construção do Embed ---
         const embed = new EmbedBuilder()
@@ -27,7 +28,7 @@ module.exports = {
                 '> 🛡️ Proteção contra contas fakes\n\n' +
                 'Clique no botão abaixo para iniciar o processo seguro via OAuth2.'
             )
-            .setColor(0x5865F2) // Discord Blurple para um visual mais integrado
+            .setColor(0x5865F2) // Discord Blurple
             .addFields(
                 {
                     name: '📌 Como funciona?',
@@ -56,17 +57,17 @@ module.exports = {
 
         // --- Envio ---
         try {
-            await interaction.deferReply({ ephemeral: true });
-            await interaction.editReply({ content: '✅ Painel de verificação enviado com sucesso!' });
+            // Usando reply direto para evitar problemas de sincronização se o canal for lento
+            await interaction.reply({ content: '✅ Painel de verificação enviado com sucesso!', ephemeral: true });
+            
             await interaction.channel.send({
                 embeds: [embed],
                 components: [row]
             });
         } catch (error) {
             console.error('Erro ao enviar painel:', error);
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({ content: '❌ Ocorreu um erro ao tentar enviar o painel.' });
-            } else {
+            // Fallback se o reply falhar
+            if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({ content: '❌ Ocorreu um erro ao tentar enviar o painel.', ephemeral: true }).catch(() => {});
             }
         }
