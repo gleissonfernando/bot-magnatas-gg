@@ -4,6 +4,15 @@ const path = require('path');
 const config = require('./config/config');
 const { handleCallInteraction, handleModal, handleVoiceStateUpdate } = require('./config/callManager');
 
+// Importar o backend Express para registrar o cliente Discord
+let expressApp = null;
+try {
+    const backendIndex = require('./backend/index.js');
+    // O backend será iniciado em paralelo
+} catch (e) {
+    console.warn('[Bot] Backend não está rodando em paralelo. Certifique-se de iniciar o backend separadamente.');
+}
+
 // Initialize Client
 const client = new Client({
     intents: [
@@ -77,6 +86,22 @@ const registerCommands = async () => {
 };
 
 client.once('ready', async () => {
+    console.log(`✅ Bot conectado como ${client.user.tag}`);
+    
+    // Registrar o cliente Discord com a API do painel
+    try {
+        const axios = require('axios');
+        const backendPort = process.env.BACKEND_PORT || 3000;
+        const backendUrl = `http://localhost:${backendPort}`;
+        
+        // Tentar registrar o cliente com o backend
+        const panelController = require('./backend/controllers/panel.controller');
+        panelController.setDiscordClient(client);
+        console.log('[Bot] Cliente Discord registrado com sucesso na API do painel');
+    } catch (e) {
+        console.warn('[Bot] Não foi possível registrar o cliente Discord com a API. Certifique-se de que o backend está rodando.');
+    }
+    
     await registerCommands();
 });
 
@@ -162,4 +187,8 @@ client.on('voiceStateUpdate', (oldState, newState) => {
     handleVoiceStateUpdate(oldState, newState, client);
 });
 
+// Iniciar o bot
 client.login(config.token);
+
+// Exportar o cliente para uso em outros módulos
+module.exports = client;

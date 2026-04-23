@@ -46,6 +46,16 @@ app.use('/', authRoutes);
 const apiRoutes = require('./routes/api.routes');
 app.use('/api', apiRoutes);
 
+// Panel Routes (Dashboard Integration)
+const panelRoutes = require('./routes/panel.routes');
+app.use('/api/panel', panelRoutes);
+
+// Export setDiscordClient for use in main bot file
+app.setDiscordClient = (client) => {
+    const panelController = require('./controllers/panel.controller');
+    panelController.setDiscordClient(client);
+};
+
 // Public Banner API (Legacy/Public)
 app.get('/api/banner', async (req, res) => {
     try {
