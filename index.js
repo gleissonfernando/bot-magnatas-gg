@@ -55,11 +55,22 @@ const registerCommands = async () => {
 
     try {
         console.log('⏳ Registering slash commands...');
+        
+        // Registro por Guilda (Instantâneo para testes)
+        if (config.guildId) {
+            await rest.put(
+                Routes.applicationGuildCommands(config.clientId, config.guildId),
+                { body: commandsData },
+            );
+            console.log(`✅ Guild commands registered for ${config.guildId}`);
+        }
+
+        // Registro Global (Pode levar até 1h)
         await rest.put(
             Routes.applicationCommands(config.clientId),
             { body: commandsData },
         );
-        console.log('✅ Commands registered successfully!');
+        console.log('✅ Global commands registered successfully!');
     } catch (error) {
         console.error('❌ Error registering commands:', error);
     }
@@ -94,9 +105,24 @@ client.on('interactionCreate', async interaction => {
 
     // 2. Verificar Modo de Manutenção
     if (settings && settings.maintenanceMode === true) {
-        const content = '🔧 O bot está em **modo de manutenção** para atualizações. Por favor, tente novamente mais tarde.';
+        const maintenanceEmbed = new EmbedBuilder()
+            .setAuthor({ 
+                name: 'Magnatas.gg - Manutenção', 
+                iconURL: interaction.client.user.displayAvatarURL() 
+            })
+            .setTitle('🔧 Sistema em Manutenção')
+            .setDescription(
+                'Estamos realizando melhorias e atualizações no bot para garantir a melhor experiência possível.\n\n' +
+                '**Previsão:** Voltaremos em breve!\n\n' +
+                'Agradecemos a sua paciência.'
+            )
+            .setColor(0xFFAA00) // Amarelo/Laranja de Manutenção
+            .setImage(config.bannerUrl || 'https://i.imgur.com/x9n7S6L.png')
+            .setFooter({ text: 'Magnatas.gg | Tecnologia & Segurança' })
+            .setTimestamp();
+
         if (interaction.isRepliable()) {
-            return interaction.reply({ content, ephemeral: true }).catch(() => {});
+            return interaction.reply({ embeds: [maintenanceEmbed], ephemeral: true }).catch(() => {});
         }
         return;
     }
