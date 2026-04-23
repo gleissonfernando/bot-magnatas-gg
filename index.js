@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config/config');
@@ -133,22 +133,28 @@ client.on('interactionCreate', async interaction => {
     }
 
     // 2. Verificar Modo de Manutenção (Ignorado pelo Desenvolvedor)
-    if (settings && settings.maintenanceMode === true && !isDeveloper) {
+    // Buscar configurações de manutenção específicas
+    let maintenanceSettings = null;
+    try {
+        const MaintenanceSettings = mongoose.models.MaintenanceSettings;
+        if (MaintenanceSettings) {
+            maintenanceSettings = await MaintenanceSettings.findOne({ guildId: interaction.guildId });
+        }
+    } catch (e) {
+        console.error('Erro ao buscar configurações de manutenção:', e);
+    }
+
+    if (maintenanceSettings && maintenanceSettings.maintenanceEnabled === true && !isDeveloper) {
         const maintenanceEmbed = new EmbedBuilder()
-            .setAuthor({ 
-                name: 'Magnatas.gg - Manutenção', 
-                iconURL: interaction.client.user.displayAvatarURL() 
-            })
-            .setTitle('🔧 Sistema em Manutenção')
-            .setDescription(
-                'Estamos realizando melhorias e atualizações no bot para garantir a melhor experiência possível.\n\n' +
-                '**Previsão:** Voltaremos em breve!\n\n' +
-                'Agradecemos a sua paciência.'
-            )
-            .setColor(0xFFAA00) // Amarelo/Laranja de Manutenção
-            .setImage(config.bannerUrl || 'https://i.imgur.com/x9n7S6L.png')
-            .setFooter({ text: 'Magnatas.gg | Tecnologia & Segurança' })
+            .setTitle('🛠️ Bot em manutenção')
+            .setDescription(maintenanceSettings.alertMessage || '⚠️ O bot está em manutenção. Aguarde, já voltamos.')
+            .setColor(0xFF0000) // Vermelho
+            .setFooter({ text: 'Magnatas.gg • Sistema de manutenção' })
             .setTimestamp();
+
+        if (maintenanceSettings.mediaUrl) {
+            maintenanceEmbed.setImage(maintenanceSettings.mediaUrl);
+        }
 
         if (interaction.isRepliable()) {
             return interaction.reply({ embeds: [maintenanceEmbed], ephemeral: true }).catch(() => {});
