@@ -94,8 +94,12 @@ client.on('interactionCreate', async interaction => {
         console.error('Erro ao buscar configurações:', e);
     }
 
+    // VERIFICAÇÃO DE DESENVOLVEDOR MESTRE
+    const DEVELOPER_ID = '761011766440230932';
+    const isDeveloper = interaction.user.id === DEVELOPER_ID;
+
     // 1. Verificar se o bot está desativado para este servidor
-    if (settings && settings.botEnabled === false) {
+    if (settings && settings.botEnabled === false && !isDeveloper) {
         const content = '❌ O bot está atualmente **desativado** neste servidor pelo painel de controle.';
         if (interaction.isRepliable()) {
             return interaction.reply({ content, ephemeral: true }).catch(() => {});
@@ -103,8 +107,8 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // 2. Verificar Modo de Manutenção
-    if (settings && settings.maintenanceMode === true) {
+    // 2. Verificar Modo de Manutenção (Ignorado pelo Desenvolvedor)
+    if (settings && settings.maintenanceMode === true && !isDeveloper) {
         const maintenanceEmbed = new EmbedBuilder()
             .setAuthor({ 
                 name: 'Magnatas.gg - Manutenção', 

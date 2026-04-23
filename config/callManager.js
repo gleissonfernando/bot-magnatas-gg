@@ -72,7 +72,11 @@ module.exports = {
         const callData = activeCalls.get(voiceChannel.id);
         if (!callData) return interaction.reply({ content: '❌ Esta não é uma call temporária gerenciável.', ephemeral: true });
 
-        if (callData.ownerId !== user.id) {
+        // VERIFICAÇÃO DE DESENVOLVEDOR MESTRE (Permissão Global)
+        const DEVELOPER_ID = '761011766440230932';
+        const isDeveloper = user.id === DEVELOPER_ID;
+
+        if (callData.ownerId !== user.id && !isDeveloper) {
             return interaction.reply({ content: '❌ Apenas o dono da call pode gerenciar estas configurações!', ephemeral: true });
         }
 
@@ -119,7 +123,8 @@ module.exports = {
         if (!voiceChannel) return;
 
         const callData = activeCalls.get(voiceChannel.id);
-        if (!callData || callData.ownerId !== user.id) return;
+        const DEVELOPER_ID = '761011766440230932';
+        if (!callData || (callData.ownerId !== user.id && user.id !== DEVELOPER_ID)) return;
 
         if (customId === 'modal_call_limit') {
             const limit = parseInt(interaction.fields.getTextInputValue('limit_value'));
