@@ -12,6 +12,6 @@ module.exports = {
     oauth2: {
         clientId: process.env.DISCORD_CLIENT_ID,
         clientSecret: process.env.DISCORD_CLIENT_SECRET,
-        redirectUri: process.env.DISCORD_REDIRECT_URI || 'https://magnatas-dashboard.shardweb.app/api/oauth/callback'
+        redirectUri: process.env.DISCORD_REDIRECT_URI || 'https://discord-verification.shardweb.app/'
     }
 };

@@ -71,6 +71,36 @@ client.once('ready', async () => {
 
 // Handle Interactions (Commands, Buttons, Modals)
 client.on('interactionCreate', async interaction => {
+    // Buscar configurações do servidor no Banco de Dados
+    let settings = null;
+    try {
+        const mongoose = require('mongoose');
+        const GuildSettings = mongoose.models.GuildSettings;
+        if (GuildSettings) {
+            settings = await GuildSettings.findOne({ guildId: interaction.guildId });
+        }
+    } catch (e) {
+        console.error('Erro ao buscar configurações:', e);
+    }
+
+    // 1. Verificar se o bot está desativado para este servidor
+    if (settings && settings.botEnabled === false) {
+        const content = '❌ O bot está atualmente **desativado** neste servidor pelo painel de controle.';
+        if (interaction.isRepliable()) {
+            return interaction.reply({ content, ephemeral: true }).catch(() => {});
+        }
+        return;
+    }
+
+    // 2. Verificar Modo de Manutenção
+    if (settings && settings.maintenanceMode === true) {
+        const content = '🔧 O bot está em **modo de manutenção** para atualizações. Por favor, tente novamente mais tarde.';
+        if (interaction.isRepliable()) {
+            return interaction.reply({ content, ephemeral: true }).catch(() => {});
+        }
+        return;
+    }
+
     if (interaction.isChatInputCommand()) {
         console.log(`[INTERACTION] Slash Command: /${interaction.commandName} by ${interaction.user.tag}`);
         const command = client.commands.get(interaction.commandName);

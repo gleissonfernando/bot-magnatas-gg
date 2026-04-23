@@ -34,6 +34,7 @@ module.exports = {
                 const channel = await guild.channels.create({
                     name: `📞 Call de ${user.username}`,
                     type: ChannelType.GuildVoice,
+                    parent: '1495977012643495996', // ID da Categoria Específica
                     permissionOverwrites: [
                         {
                             id: guild.id,
@@ -201,17 +202,25 @@ module.exports = {
 };
 
 function startDeletionTimer(channelId, guild, client) {
-    console.log(`⏳ Channel ${channelId} is empty. Starting deletion timer...`);
+    console.log(`⏳ Channel ${channelId} is empty. Starting deletion timer (30s)...`);
     const timer = setTimeout(async () => {
         const channel = await guild.channels.fetch(channelId).catch(() => null);
         if (channel && channel.members.size === 0) {
             const data = activeCalls.get(channelId);
-            const role = guild.roles.cache.get(data?.roleId);
-            if (role) await role.delete().catch(() => {});
-            await channel.delete().catch(() => {});
+            if (data && data.roleId) {
+                const role = await guild.roles.fetch(data.roleId).catch(() => null);
+                if (role) {
+                    await role.delete().catch(err => console.error(`[ERROR] Falha ao deletar cargo: ${err}`));
+                    console.log(`🗑️ Cargo ${data.roleId} deletado.`);
+                }
+            }
+            if (channel) {
+                await channel.delete().catch(err => console.error(`[ERROR] Falha ao deletar canal: ${err}`));
+                console.log(`🗑️ Canal ${channelId} deletado.`);
+            }
             activeCalls.delete(channelId);
-            console.log(`🗑️ Auto-deleted empty call ${channelId}`);
+            console.log(`✅ Deleção automática concluída para a call ${channelId}`);
         }
-    }, 60000); // 1 minute
+    }, 30000); // 30 segundos
     deletionTimers.set(channelId, timer);
 }

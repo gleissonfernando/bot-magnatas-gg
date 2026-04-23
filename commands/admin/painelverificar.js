@@ -14,25 +14,35 @@ module.exports = {
 
         // --- Construção do Embed ---
         const embed = new EmbedBuilder()
-            .setTitle('🌌 Central de Verificação - magnatas.gg')
-            .setDescription('Bem-vindo ao servidor! Para liberar seu acesso total, você precisa conectar sua conta do Discord em nosso painel oficial.\n\n**Passos para verificação:**\n1️⃣ Clique no botão abaixo\n2️⃣ Autorize o acesso via OAuth2\n3️⃣ Aguarde a atribuição automática do cargo')
-            .setColor(EMBED_COLOR)
+            .setAuthor({ 
+                name: 'Magnatas.gg - Sistema de Segurança', 
+                iconURL: interaction.client.user.displayAvatarURL() 
+            })
+            .setTitle('🛡️ Central de Verificação')
+            .setDescription(
+                'Olá! Para garantir a segurança de nossa comunidade e liberar seu acesso, solicitamos que realize a verificação de sua conta.\n\n' +
+                '**Por que verificar?**\n' +
+                '> 💎 Acesso total aos canais exclusivos\n' +
+                '> 🚀 Sincronização automática de cargos\n' +
+                '> 🛡️ Proteção contra contas fakes\n\n' +
+                'Clique no botão abaixo para iniciar o processo seguro via OAuth2.'
+            )
+            .setColor(0x5865F2) // Discord Blurple para um visual mais integrado
             .addFields(
                 {
-                    name: '🔍 O que vai acontecer?',
-                    value: '• O sistema irá buscar discords antigos\n• O sistema sincroniza seu nick\n• O sistema adiciona cargos automaticamente',
-                    inline: false
+                    name: '📌 Como funciona?',
+                    value: '1. Clique em **Conectar com Discord**\n2. Autorize a aplicação oficial\n3. Aguarde alguns segundos\n4. Aproveite o servidor!',
+                    inline: true
                 },
                 {
-                    name: '📋 Passo a Passo',
-                    value: '1️⃣ Clique no botão abaixo\n2️⃣ Autorize o login\n3️⃣ Aguarde a validação\n4️⃣ Retorne com o cargo',
-                    inline: false
+                    name: '🛡️ Privacidade',
+                    value: 'Seus dados são processados de forma criptografada e segura em nossos servidores.',
+                    inline: true
                 }
             )
             .setImage(BANNER_URL)
             .setFooter({
-                text: '🔒 Segurança Magnatas.gg | Verificação Instantânea',
-                iconURL: interaction.client.user.displayAvatarURL()
+                text: '🔒 Verificação Instantânea & Segura',
             })
             .setTimestamp();
 
