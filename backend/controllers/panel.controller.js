@@ -72,16 +72,22 @@ async function sendMessage(req, res) {
             });
         }
 
-        // Enviar mensagem
+        // Enviar mensagem real
+        console.log(`[Bot] Tentando enviar mensagem real para o canal ${channelId} no servidor ${guildId}`);
+        
         const sentMessage = await channel.send({
             content: message,
             embeds: embeds || []
         });
 
+        console.log(`[Bot] Mensagem real enviada com sucesso! ID: ${sentMessage.id}`);
+
         return res.json({
             success: true,
             messageId: sentMessage.id,
-            message: 'Mensagem enviada com sucesso'
+            message: 'Mensagem enviada com sucesso',
+            realData: true,
+            timestamp: new Date()
         });
 
     } catch (error) {
