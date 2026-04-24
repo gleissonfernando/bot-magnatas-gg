@@ -5,34 +5,36 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { logger } = require('../utils/logger');
 
 dotenv.config();
 
 const app = express();
 
 // --- SECURITY LAYERS ---
-app.use(helmet()); // Protects headers and prevents common web attacks
+app.use(helmet()); // Protege headers e previne ataques comuns
 app.use(cors());
-app.use(express.json({ limit: '10kb' })); // Prevent large payload attacks
+app.use(express.json({ limit: '50mb' })); // Aumentado limite de payload para evitar erros de tamanho
 
-// Rate Limiting: Max 100 requests per 15 minutes per IP
+// Rate Limiting: REMOVIDO/AUMENTADO para evitar bloqueios no OAuth2 e Dashboard
+// Agora permite 10.000 requisições a cada 15 minutos (praticamente ilimitado para uso normal)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: { error: 'Too many requests, please try again later.' },
+    max: 10000, 
+    message: { error: 'Limite de requisições excedido. Tente novamente mais tarde.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
-app.use('/api/', limiter); // Apply rate limiting only to API routes
+app.use('/api/', limiter); 
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('🍃 MongoDB Connected (Backend)'))
-    .catch(err => console.error('❌ MongoDB Error:', err));
+    .then(() => logger.info('🍃 MongoDB Connected (Backend)'))
+    .catch(err => logger.error('❌ MongoDB Error:', err));
 
 // Simple Banner Schema
 const BannerSchema = new mongoose.Schema({
-    url: { type: String, default: 'https://via.placeholder.com/1200x400?text=SkyFall+Verification' }
+    url: { type: String, default: 'https://via.placeholder.com/1200x400?text=Magnatas+Verification' }
 });
 const Banner = mongoose.model('Banner', BannerSchema);
 
@@ -56,10 +58,10 @@ app.setDiscordClient = (client) => {
     panelController.setDiscordClient(client);
 };
 
-// Public Banner API (Legacy/Public)
+// Public Banner API
 app.get('/api/banner', async (req, res) => {
     try {
-        const banner = await Banner.findOne() || { url: 'https://via.placeholder.com/1200x400?text=SkyFall+Verification' };
+        const banner = await Banner.findOne() || { url: 'https://via.placeholder.com/1200x400?text=Magnatas+Verification' };
         res.json({ url: banner.url });
     } catch (error) {
         res.status(500).json({ error: 'Internal server error' });
@@ -78,11 +80,11 @@ app.post('/api/banner', async (req, res) => {
     }
 });
 
-// Global Error Handler (Prevents leaking stack traces)
+// Global Error Handler
 app.use((err, req, res, next) => {
-    console.error('[SERVER_ERROR]:', err.stack);
-    res.status(500).json({ error: 'An internal server error occurred. Please try again later.' });
+    logger.error('[SERVER_ERROR]:', err);
+    res.status(500).json({ error: 'Ocorreu um erro interno no servidor.' });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Secure Backend running on port ${PORT}`));
+app.listen(PORT, () => logger.info(`🚀 Backend Magnatas rodando na porta ${PORT} (Sem limites de OAuth2)`));

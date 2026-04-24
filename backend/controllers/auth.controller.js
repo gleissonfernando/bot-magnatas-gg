@@ -1,18 +1,28 @@
 const { generateToken } = require('../utils/jwt');
 const axios = require('axios');
 const mongoose = require('mongoose');
+const { logger } = require('../../utils/logger');
 
 exports.login = (req, res) => {
-    const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID)}&redirect_uri=${encodeURIComponent((process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI))}&response_type=code&scope=bot%20email%20gdm.join`;
+    // Escopos expandidos para garantir que o bot tenha todas as permissões necessárias via OAuth2
+    const scopes = ['identify', 'email', 'guilds', 'guilds.join'].join(' ');
+    const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID)}&redirect_uri=${encodeURIComponent((process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI))}&response_type=code&scope=${encodeURIComponent(scopes)}`;
+    
+    logger.info('Iniciando fluxo de login OAuth2');
     res.redirect(oauthUrl);
 };
 
 exports.callback = async (req, res) => {
     const { code } = req.query;
 
-    if (!code) return res.status(400).send('No code provided');
+    if (!code) {
+        logger.warn('Tentativa de callback OAuth2 sem código');
+        return res.status(400).send('No code provided');
+    }
 
     try {
+        logger.info('Processando callback OAuth2');
+        
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
             client_id: (process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID),
             client_secret: (process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET),
@@ -28,6 +38,7 @@ exports.callback = async (req, res) => {
         });
 
         const userData = userResponse.data;
+        logger.info(`Usuário autenticado via OAuth2: ${userData.username} (${userData.id})`);
 
         await mongoose.connection.db.collection('verified_users').updateOne(
             { discordId: userData.id },
@@ -35,18 +46,19 @@ exports.callback = async (req, res) => {
             { upsert: true }
         );
 
-        // Generate JWT for the Primary API
+        // Gera JWT para a API Principal
         const token = generateToken({
             userId: userData.id,
             username: userData.username
         });
 
-        // Redirect to frontend with the token in the query string
-        // In a production app, we might use a secure cookie or a temporary code
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/success?token=${token}&user=${userData.username}&avatar=${userData.avatar}`);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        logger.info(`Redirecionando usuário para o frontend: ${userData.username}`);
+        
+        res.redirect(`${frontendUrl}/success?token=${token}&user=${userData.username}&avatar=${userData.avatar}`);
 
     } catch (error) {
-        console.error('OAuth2 Error:', error.response?.data || error.message);
+        logger.error('Erro no fluxo OAuth2', error.response?.data || error.message);
         res.status(500).send('Authentication failed');
     }
 };

@@ -1,28 +1,29 @@
 const { ChannelType, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
+const { logger } = require('../../utils/logger');
+const { createSuccessEmbed, createErrorEmbed } = require('../../utils/messageUtils');
 
 /**
  * Referência global ao cliente Discord
- * Será definida quando o bot iniciar
  */
 let discordClient = null;
 
 /**
  * Define a referência ao cliente Discord
- * Deve ser chamado no index.js após criar o cliente
  */
 function setDiscordClient(client) {
     discordClient = client;
-    console.log('[Panel Controller] Discord client registered');
+    logger.info('Discord Client registrado no Panel Controller para sincronização com Dashboard');
 }
 
 /**
- * Envia uma mensagem para um canal específico
+ * Envia uma mensagem para um canal específico via Dashboard
  * POST /api/panel/send-message
  */
 async function sendMessage(req, res) {
     try {
         if (!discordClient || !discordClient.isReady()) {
+            logger.warn('Tentativa de envio de mensagem via Dashboard com bot offline');
             return res.status(503).json({ 
                 success: false, 
                 error: 'Bot não está conectado ao Discord' 
@@ -31,7 +32,6 @@ async function sendMessage(req, res) {
 
         const { guildId, channelId, message, embeds } = req.body;
 
-        // Validação
         if (!guildId || !channelId) {
             return res.status(400).json({ 
                 success: false, 
@@ -39,15 +39,6 @@ async function sendMessage(req, res) {
             });
         }
 
-        // Pelo menos um deve estar presente: message ou embeds
-        if (!message && (!embeds || embeds.length === 0)) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'É necessário fornecer uma mensagem ou pelo menos um embed' 
-            });
-        }
-
-        // Verificar se o bot está no servidor
         const guild = discordClient.guilds.cache.get(guildId);
         if (!guild) {
             return res.status(404).json({ 
@@ -56,24 +47,14 @@ async function sendMessage(req, res) {
             });
         }
 
-        // Obter o canal
         const channel = guild.channels.cache.get(channelId);
-        if (!channel) {
+        if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement)) {
             return res.status(404).json({ 
                 success: false, 
-                error: 'Canal não encontrado' 
+                error: 'Canal de texto não encontrado ou inválido' 
             });
         }
 
-        // Verificar se o canal é um canal de texto ou anúncios
-        if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Canal não é um canal de texto ou anúncios' 
-            });
-        }
-
-        // Verificar permissões do bot
         const permissions = channel.permissionsFor(guild.members.me);
         if (!permissions.has(PermissionFlagsBits.SendMessages)) {
             return res.status(403).json({ 
@@ -82,7 +63,6 @@ async function sendMessage(req, res) {
             });
         }
 
-        // Formatar embeds se fornecidos
         let formattedEmbeds = [];
         if (embeds && Array.isArray(embeds)) {
             formattedEmbeds = embeds.map(e => {
@@ -99,26 +79,25 @@ async function sendMessage(req, res) {
             });
         }
 
-        // Enviar mensagem real
-        console.log(`[Bot] Tentando enviar mensagem real para o canal ${channelId} no servidor ${guildId}`);
-        
         const sentMessage = await channel.send({
             content: message || null,
             embeds: formattedEmbeds
         });
 
-        console.log(`[Bot] Mensagem real enviada com sucesso! ID: ${sentMessage.id}`);
+        logger.info(`Mensagem enviada via Dashboard`, { 
+            guildId, 
+            channelId, 
+            messageId: sentMessage.id 
+        });
 
         return res.json({
             success: true,
             messageId: sentMessage.id,
-            message: 'Mensagem enviada com sucesso',
-            realData: true,
             timestamp: new Date()
         });
 
     } catch (error) {
-        console.error('[Panel Controller] Erro ao enviar mensagem:', error);
+        logger.error('Erro no Panel Controller ao enviar mensagem', error);
         return res.status(500).json({
             success: false,
             error: error.message || 'Erro ao enviar mensagem'
@@ -128,36 +107,23 @@ async function sendMessage(req, res) {
 
 /**
  * Obtém as configurações de um servidor
- * GET /api/panel/guild/:guildId
  */
 async function getGuildSettings(req, res) {
     try {
         if (!discordClient || !discordClient.isReady()) {
-            return res.status(503).json({ 
-                success: false, 
-                error: 'Bot não está conectado ao Discord' 
-            });
+            return res.status(503).json({ success: false, error: 'Bot offline' });
         }
 
         const { guildId } = req.params;
-
         const guild = discordClient.guilds.cache.get(guildId);
-        if (!guild) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'Servidor não encontrado' 
-            });
-        }
-
-        // Buscar configurações do banco de dados
-        const GuildSettings = mongoose.models.GuildSettings;
         
-        let settings = null;
-        if (GuildSettings) {
-            settings = await GuildSettings.findOne({ guildId });
+        if (!guild) {
+            return res.status(404).json({ success: false, error: 'Servidor não encontrado' });
         }
 
-        // Obter dados reais do servidor
+        const GuildSettings = mongoose.models.GuildSettings;
+        let settings = GuildSettings ? await GuildSettings.findOne({ guildId }) : null;
+
         const textChannels = guild.channels.cache
             .filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
             .map(c => ({ id: c.id, name: c.name }));
@@ -169,53 +135,23 @@ async function getGuildSettings(req, res) {
                 name: guild.name,
                 icon: guild.iconURL(),
                 memberCount: guild.memberCount,
-                ownerId: guild.ownerId,
-                channels: textChannels,
-                approximate_member_count: guild.memberCount
+                channels: textChannels
             },
-            settings: settings || {
-                guildId,
-                botEnabled: true,
-                maintenanceMode: false,
-                welcomeEnabled: false,
-                goodbyeEnabled: false
-            }
+            settings: settings || { guildId, botEnabled: true }
         });
-
     } catch (error) {
-        console.error('[Panel Controller] Erro ao obter configurações:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Erro ao obter configurações'
-        });
+        logger.error('Erro ao obter configurações via Dashboard', error, { guildId: req.params.guildId });
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
 /**
  * Atualiza as configurações de um servidor
- * PUT /api/panel/guild/:guildId
  */
 async function updateGuildSettings(req, res) {
     try {
-        if (!discordClient || !discordClient.isReady()) {
-            return res.status(503).json({ 
-                success: false, 
-                error: 'Bot não está conectado ao Discord' 
-            });
-        }
-
         const { guildId } = req.params;
         const updates = req.body;
-
-        const guild = discordClient.guilds.cache.get(guildId);
-        if (!guild) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'Servidor não encontrado' 
-            });
-        }
-
-        // Atualizar no banco de dados
         const GuildSettings = mongoose.models.GuildSettings;
         
         let settings = null;
@@ -227,208 +163,109 @@ async function updateGuildSettings(req, res) {
             );
         }
 
-        return res.json({
-            success: true,
-            message: 'Configurações atualizadas com sucesso',
-            settings
-        });
+        logger.info(`Configurações do servidor ${guildId} atualizadas via Dashboard`);
 
+        return res.json({ success: true, settings });
     } catch (error) {
-        console.error('[Panel Controller] Erro ao atualizar configurações:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Erro ao atualizar configurações'
-        });
+        logger.error('Erro ao atualizar configurações via Dashboard', error, { guildId: req.params.guildId });
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
 /**
- * Envia uma mensagem de boas-vindas de teste
- * POST /api/panel/test-welcome
+ * Teste de Boas-vindas usando novos utilitários
  */
 async function testWelcomeMessage(req, res) {
     try {
-        if (!discordClient || !discordClient.isReady()) {
-            return res.status(503).json({ 
-                success: false, 
-                error: 'Bot não está conectado ao Discord' 
-            });
-        }
-
         const { guildId, channelId, title, message, imageUrl } = req.body;
-
-        if (!guildId || !channelId) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'guildId e channelId são obrigatórios' 
-            });
-        }
-
         const guild = discordClient.guilds.cache.get(guildId);
-        if (!guild) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'Servidor não encontrado' 
-            });
-        }
+        const channel = guild?.channels.cache.get(channelId);
 
-        const channel = guild.channels.cache.get(channelId);
-        if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement)) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'Canal de texto não encontrado' 
-            });
-        }
+        if (!channel) return res.status(404).json({ success: false, error: 'Canal não encontrado' });
 
-        // Enviar mensagem de teste real
-        const embed = new EmbedBuilder()
-            .setTitle(title || '👑 Bem-vindo(a) ao clã Magnatas')
-            .setDescription(message || 'seja bem-vindo ao império Magnatas.')
-            .setColor(0xFF0000)
-            .setThumbnail(discordClient.user.displayAvatarURL())
-            .setFooter({ text: 'Magnatas.gg • Teste de Boas-vindas' })
-            .setTimestamp();
-
-        if (imageUrl) embed.setImage(imageUrl);
+        const embed = createSuccessEmbed(
+            title || '👑 Bem-vindo(a) ao clã Magnatas',
+            message || 'Seja bem-vindo ao império Magnatas.',
+            {
+                thumbnail: discordClient.user.displayAvatarURL(),
+                footer: 'Magnatas.gg • Sincronizado com Dashboard',
+                image: imageUrl
+            }
+        );
 
         const sentMessage = await channel.send({
-            content: `👋 **Teste de Boas-vindas**`,
+            content: `👋 **Teste de Boas-vindas (Sincronizado)**`,
             embeds: [embed]
         });
 
-        return res.json({
-            success: true,
-            messageId: sentMessage.id,
-            message: 'Mensagem de teste enviada com sucesso'
-        });
+        logger.info(`Teste de boas-vindas enviado via Dashboard para ${channelId}`);
 
+        return res.json({ success: true, messageId: sentMessage.id });
     } catch (error) {
-        console.error('[Panel Controller] Erro ao enviar mensagem de teste:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Erro ao enviar mensagem de teste'
-        });
+        logger.error('Erro no teste de boas-vindas via Dashboard', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
 /**
- * Envia uma mensagem de despedida de teste
- * POST /api/panel/test-goodbye
+ * Teste de Despedida usando novos utilitários
  */
 async function testGoodbyeMessage(req, res) {
     try {
-        if (!discordClient || !discordClient.isReady()) {
-            return res.status(503).json({ 
-                success: false, 
-                error: 'Bot não está conectado ao Discord' 
-            });
-        }
-
         const { guildId, channelId, title, message, imageUrl } = req.body;
-
-        if (!guildId || !channelId) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'guildId e channelId são obrigatórios' 
-            });
-        }
-
         const guild = discordClient.guilds.cache.get(guildId);
-        if (!guild) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'Servidor não encontrado' 
-            });
-        }
+        const channel = guild?.channels.cache.get(channelId);
 
-        const channel = guild.channels.cache.get(channelId);
-        if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement)) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'Canal de texto não encontrado' 
-            });
-        }
+        if (!channel) return res.status(404).json({ success: false, error: 'Canal não encontrado' });
 
-        // Enviar mensagem de teste real
-        const embed = new EmbedBuilder()
-            .setTitle(title || '🚪 Saída do clã Magnatas')
-            .setDescription(message || 'saiu do império Magnatas.')
-            .setColor(0xFF0000)
-            .setThumbnail(discordClient.user.displayAvatarURL())
-            .setFooter({ text: 'Magnatas.gg • Teste de Despedida' })
-            .setTimestamp();
-
-        if (imageUrl) embed.setImage(imageUrl);
+        const embed = createErrorEmbed(
+            title || '🚪 Saída do clã Magnatas',
+            message || 'Saiu do império Magnatas.',
+            {
+                thumbnail: discordClient.user.displayAvatarURL(),
+                footer: 'Magnatas.gg • Sincronizado com Dashboard',
+                image: imageUrl
+            }
+        );
 
         const sentMessage = await channel.send({
-            content: `👋 **Teste de Despedida**`,
+            content: `👋 **Teste de Despedida (Sincronizado)**`,
             embeds: [embed]
         });
 
-        return res.json({
-            success: true,
-            messageId: sentMessage.id,
-            message: 'Mensagem de teste enviada com sucesso'
-        });
+        logger.info(`Teste de despedida enviado via Dashboard para ${channelId}`);
 
+        return res.json({ success: true, messageId: sentMessage.id });
     } catch (error) {
-        console.error('[Panel Controller] Erro ao enviar mensagem de teste:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Erro ao enviar mensagem de teste'
-        });
+        logger.error('Erro no teste de despedida via Dashboard', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
-/**
- * Lista todos os servidores onde o bot está presente
- * GET /api/panel/guilds
- */
 async function listGuilds(req, res) {
     try {
-        if (!discordClient || !discordClient.isReady()) {
-            return res.status(503).json({ 
-                success: false, 
-                error: 'Bot não está conectado ao Discord' 
-            });
-        }
-
+        if (!discordClient?.isReady()) return res.status(503).json({ success: false, error: 'Bot offline' });
         const guilds = discordClient.guilds.cache.map(guild => ({
             id: guild.id,
             name: guild.name,
             icon: guild.iconURL(),
             memberCount: guild.memberCount
         }));
-
-        return res.json({
-            success: true,
-            guilds
-        });
-
+        return res.json({ success: true, guilds });
     } catch (error) {
-        console.error('[Panel Controller] Erro ao listar servidores:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Erro ao listar servidores'
-        });
+        logger.error('Erro ao listar servidores via Dashboard', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
-/**
- * Healthcheck para o monitoramento
- * GET /api/panel/guild/test
- */
 async function healthCheck(req, res) {
-    if (!discordClient || !discordClient.isReady()) {
-        return res.status(503).json({ success: false, status: 'offline' });
-    }
+    if (!discordClient?.isReady()) return res.status(503).json({ success: false, status: 'offline' });
     return res.json({ 
         success: true, 
         status: 'online',
         uptime: discordClient.uptime,
         ping: discordClient.ws.ping,
-        guilds: discordClient.guilds.cache.size,
-        timestamp: new Date()
+        guilds: discordClient.guilds.cache.size
     });
 }
 
