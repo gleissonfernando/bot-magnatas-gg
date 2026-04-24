@@ -12,8 +12,11 @@ dotenv.config();
 const app = express();
 
 // --- SECURITY LAYERS ---
-app.use(helmet()); // Protege headers e previne ataques comuns
-app.use(cors());
+app.use(helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false
+})); 
+app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '50mb' })); // Aumentado limite de payload para evitar erros de tamanho
 
 // Rate Limiting: REMOVIDO/AUMENTADO para evitar bloqueios no OAuth2 e Dashboard

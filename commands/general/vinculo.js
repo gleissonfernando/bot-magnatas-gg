@@ -16,7 +16,8 @@ module.exports = {
         try {
             // Usamos a porta 3000 por padrão do backend ou env
             const PORT = process.env.PORT || 3000;
-            const response = await axios.get(`http://localhost:${PORT}/api/panel/verify-dev/${interaction.user.id}`);
+            const API_BASE = process.env.INTERNAL_API_URL || `http://127.0.0.1:${PORT}`;
+            const response = await axios.get(`${API_BASE}/api/panel/verify-dev/${interaction.user.id}`);
             
             if (!response.data.success || !response.data.hasPermission) {
                 return interaction.reply({ 
