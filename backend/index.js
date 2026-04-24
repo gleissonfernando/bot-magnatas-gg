@@ -48,6 +48,10 @@ app.use('/', authRoutes);
 const apiRoutes = require('./routes/api.routes');
 app.use('/api', apiRoutes);
 
+// Guilds Routes (Server Management)
+const guildsRoutes = require('./routes/guilds.routes');
+app.use('/api/guilds', guildsRoutes);
+
 // Panel Routes (Dashboard Integration)
 const panelRoutes = require('./routes/panel.routes');
 app.use('/api/panel', panelRoutes);
