@@ -44,4 +44,28 @@ router.get('/guild/test', panelController.healthCheck);
 router.get('/diagnostic', panelController.diagnostic);
 router.get('/verify-dev/:discordId', panelController.verifyDevPermission);
 
+/**
+ * Endpoints de Logs — Integração com o Painel de Controle
+ *
+ * GET  /api/panel/logs/:guildId
+ *   Retorna os últimos logs de um servidor.
+ *   Query params: type, userId, limit (max 100), skip, startDate, endDate
+ *
+ * POST /api/panel/logs/:guildId/clear
+ *   Remove logs antigos de um servidor.
+ *   Body: { daysOld: number }
+ *
+ * GET  /api/panel/logs/:guildId/export
+ *   Exporta logs em CSV.
+ *   Query params: type, startDate, endDate
+ *
+ * GET  /api/panel/logs/:guildId/stats
+ *   Retorna estatísticas de logs por tipo.
+ */
+const logsController = require('../controllers/logs.controller');
+router.get('/logs/:guildId',          logsController.getLogs);
+router.post('/logs/:guildId/clear',   logsController.clearOldLogs);
+router.get('/logs/:guildId/export',   logsController.exportLogs);
+router.get('/logs/:guildId/stats',    logsController.getLogStats);
+
 module.exports = router;

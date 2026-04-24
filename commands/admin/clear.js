@@ -1,4 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { logClear } = require('../../utils/guildLogger');
+const { logger } = require('../../utils/logger');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -18,5 +20,17 @@ module.exports = {
 
         await interaction.channel.bulkDelete(amount, true);
         await interaction.reply({ content: `🧹 ${amount} mensagens foram limpas com sucesso!`, ephemeral: true });
+
+        // Registrar log de limpeza no MongoDB e replicar para o painel
+        try {
+            await logClear(
+                interaction.guildId,
+                interaction.user,
+                interaction.channel.name,
+                amount
+            );
+        } catch (logErr) {
+            logger.error('Erro ao registrar log de clear:', logErr);
+        }
     },
 };

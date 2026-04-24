@@ -1,4 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { logBan } = require('../../utils/guildLogger');
+const { logger } = require('../../utils/logger');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,7 +16,15 @@ module.exports = {
         try {
             await interaction.guild.members.ban(user, { reason });
             await interaction.reply({ content: `🔨 ${user.tag} foi banido. Motivo: ${reason}` });
+
+            // Registrar log de moderação no MongoDB e replicar para o painel
+            try {
+                await logBan(interaction.guildId, interaction.user, user, reason);
+            } catch (logErr) {
+                logger.error('Erro ao registrar log de ban:', logErr);
+            }
         } catch (error) {
+            logger.error('Erro ao executar comando ban:', error);
             await interaction.reply({ content: '❌ Não consegui banir esse usuário. Verifique minhas permissões!', ephemeral: true });
         }
     },

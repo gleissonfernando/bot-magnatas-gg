@@ -1,8 +1,29 @@
 const GuildLog = require('../backend/models/GuildLog');
 const { logger } = require('./logger');
+const dashboardClient = require('./dashboardClient');
 
 /**
- * Registrar evento no log do servidor
+ * Mapeamento de tipo de log interno → cor do embed no painel
+ */
+const TYPE_COLORS = {
+    member_join:         0x2ECC71,
+    member_leave:        0xFF6B6B,
+    message_sent:        0x3498DB,
+    config_updated:      0x3498DB,
+    bot_status_changed:  0x9B59B6,
+    maintenance_started: 0xFF0000,
+    maintenance_ended:   0x2ECC71,
+    error:               0xFF0000,
+    warning:             0xFFA500,
+    info:                0x5865F2,
+    ban:                 0xFF0000,
+    kick:                0xFF8C00,
+    message_delete:      0xFFA500,
+    command:             0x5865F2,
+};
+
+/**
+ * Registrar evento no log do servidor (MongoDB) e replicar para o painel em background.
  */
 async function logGuildEvent(guildId, options) {
   try {
@@ -19,9 +40,12 @@ async function logGuildEvent(guildId, options) {
       metadata = {},
       severity = 'low',
       ipAddress = null,
-      userAgent = null
+      userAgent = null,
+      fields = [],
+      imageUrl = null,
     } = options;
 
+    // 1. Salvar no MongoDB local
     const logEntry = new GuildLog({
       guildId,
       type,
@@ -42,6 +66,21 @@ async function logGuildEvent(guildId, options) {
 
     await logEntry.save();
     logger.debug(`Log registrado para servidor ${guildId}: ${title}`);
+
+    // 2. Replicar para o painel em background (fire-and-forget)
+    dashboardClient.sendLogToDashboard({
+      guildId,
+      title,
+      description,
+      type,
+      userId:   userId   || undefined,
+      userName: userName || undefined,
+      color:    TYPE_COLORS[type] || 0x5865F2,
+      footer:   'Magnatas.gg • Bot',
+      imageUrl: imageUrl || undefined,
+      fields,
+    }).catch(() => {}); // Silencia erros — painel pode estar offline
+
     return logEntry;
 
   } catch (error) {
@@ -193,6 +232,76 @@ async function logMaintenanceStatus(guildId, guildName, status, message) {
 }
 
 /**
+ * Registrar banimento de membro
+ */
+async function logBan(guildId, executor, targetUser, reason) {
+  return logGuildEvent(guildId, {
+    type: 'ban',
+    title: `${targetUser.tag} foi banido`,
+    description: `Banido por: ${executor.tag} | Motivo: ${reason}`,
+    userId: executor.id,
+    userName: executor.tag,
+    metadata: {
+      targetId:   targetUser.id,
+      targetTag:  targetUser.tag,
+      executorId: executor.id,
+      reason,
+    },
+    severity: 'high',
+    fields: [
+      { name: 'Usuário Banido', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+      { name: 'Executado por',  value: `${executor.tag} (${executor.id})`,     inline: true },
+      { name: 'Motivo',         value: reason,                                  inline: false },
+    ],
+  });
+}
+
+/**
+ * Registrar expulsão de membro
+ */
+async function logKick(guildId, executor, targetUser, reason) {
+  return logGuildEvent(guildId, {
+    type: 'kick',
+    title: `${targetUser.tag} foi expulso`,
+    description: `Expulso por: ${executor.tag} | Motivo: ${reason}`,
+    userId: executor.id,
+    userName: executor.tag,
+    metadata: {
+      targetId:   targetUser.id,
+      targetTag:  targetUser.tag,
+      executorId: executor.id,
+      reason,
+    },
+    severity: 'high',
+    fields: [
+      { name: 'Usuário Expulso', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+      { name: 'Executado por',   value: `${executor.tag} (${executor.id})`,     inline: true },
+      { name: 'Motivo',          value: reason,                                  inline: false },
+    ],
+  });
+}
+
+/**
+ * Registrar limpeza de mensagens
+ */
+async function logClear(guildId, executor, channelName, amount) {
+  return logGuildEvent(guildId, {
+    type: 'message_delete',
+    title: `${amount} mensagens limpas em #${channelName}`,
+    description: `Executado por: ${executor.tag}`,
+    userId: executor.id,
+    userName: executor.tag,
+    channelName,
+    metadata: { amount, channelName },
+    severity: 'medium',
+    fields: [
+      { name: 'Quantidade', value: String(amount),    inline: true },
+      { name: 'Canal',      value: `#${channelName}`, inline: true },
+    ],
+  });
+}
+
+/**
  * Registrar erro
  */
 async function logError(guildId, errorTitle, errorMessage, metadata = {}) {
@@ -213,5 +322,8 @@ module.exports = {
   logMemberLeave,
   logConfigUpdate,
   logMaintenanceStatus,
-  logError
+  logBan,
+  logKick,
+  logClear,
+  logError,
 };

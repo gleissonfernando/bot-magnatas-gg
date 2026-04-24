@@ -1,22 +1,26 @@
 const { getGuildLogs, clearOldLogs } = require('../../utils/guildLogger');
+const GuildLog = require('../models/GuildLog');
 const { logger } = require('../../utils/logger');
 
 /**
  * Buscar logs de um servidor
+ * Acessível pelo painel via GET /api/panel/logs/:guildId
+ * ou pela rota protegida GET /api/logs/:guildId
  */
 exports.getLogs = async (req, res) => {
   try {
     const { guildId } = req.params;
     const { type, userId, limit = 50, skip = 0, startDate, endDate } = req.query;
 
-    // Validar permissões
-    const hasPermission = req.user.role === 'admin' || 
-                         req.user.guilds?.includes(guildId) ||
-                         req.user.id === req.guildConfig?.ownerId;
-
-    if (!hasPermission) {
-      logger.warn(`Acesso negado aos logs de ${guildId} por ${req.user.id}`);
-      return res.status(403).json({ error: 'Acesso negado' });
+    // Verificar permissões apenas se houver usuário autenticado (rota protegida)
+    if (req.user) {
+      const hasPermission = req.user.role === 'admin' ||
+                           req.user.guilds?.includes(guildId) ||
+                           req.user.id === req.guildConfig?.ownerId;
+      if (!hasPermission) {
+        logger.warn(`Acesso negado aos logs de ${guildId} por ${req.user.id}`);
+        return res.status(403).json({ error: 'Acesso negado' });
+      }
     }
 
     // Buscar logs
@@ -45,13 +49,14 @@ exports.clearOldLogs = async (req, res) => {
     const { guildId } = req.params;
     const { daysOld = 30 } = req.body;
 
-    // Apenas admin ou owner do servidor
-    const isOwner = req.user.id === req.guildConfig?.ownerId;
-    const isAdmin = req.user.role === 'admin';
-
-    if (!isOwner && !isAdmin) {
-      logger.warn(`Tentativa de limpar logs sem permissão por ${req.user.id}`);
-      return res.status(403).json({ error: 'Acesso negado' });
+    // Verificar permissões apenas se houver usuário autenticado
+    if (req.user) {
+      const isOwner = req.user.id === req.guildConfig?.ownerId;
+      const isAdmin = req.user.role === 'admin';
+      if (!isOwner && !isAdmin) {
+        logger.warn(`Tentativa de limpar logs sem permissão por ${req.user.id}`);
+        return res.status(403).json({ error: 'Acesso negado' });
+      }
     }
 
     const deletedCount = await clearOldLogs(guildId, daysOld);
@@ -73,12 +78,13 @@ exports.exportLogs = async (req, res) => {
     const { guildId } = req.params;
     const { type, startDate, endDate } = req.query;
 
-    // Validar permissões
-    const hasPermission = req.user.role === 'admin' || 
-                         req.user.id === req.guildConfig?.ownerId;
-
-    if (!hasPermission) {
-      return res.status(403).json({ error: 'Acesso negado' });
+    // Verificar permissões apenas se houver usuário autenticado
+    if (req.user) {
+      const hasPermission = req.user.role === 'admin' ||
+                           req.user.id === req.guildConfig?.ownerId;
+      if (!hasPermission) {
+        return res.status(403).json({ error: 'Acesso negado' });
+      }
     }
 
     // Buscar todos os logs (sem limite)
@@ -99,6 +105,36 @@ exports.exportLogs = async (req, res) => {
   } catch (error) {
     logger.error('Erro ao exportar logs:', error);
     res.status(500).json({ error: 'Erro ao exportar logs' });
+  }
+};
+
+/**
+ * Retornar estatísticas de logs por tipo
+ * Acessível pelo painel via GET /api/panel/logs/:guildId/stats
+ */
+exports.getLogStats = async (req, res) => {
+  try {
+    const { guildId } = req.params;
+    const GuildLogModel = GuildLog;
+
+    const stats = await GuildLogModel.aggregate([
+      { $match: { guildId } },
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          lastOccurrence: { $max: '$createdAt' },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    const total = stats.reduce((acc, s) => acc + s.count, 0);
+
+    res.json({ guildId, total, byType: stats });
+  } catch (error) {
+    logger.error('Erro ao buscar estatísticas de logs:', error);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas de logs' });
   }
 };
 
