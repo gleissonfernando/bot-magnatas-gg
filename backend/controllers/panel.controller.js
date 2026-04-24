@@ -31,10 +31,18 @@ async function sendMessage(req, res) {
         const { guildId, channelId, message, embeds } = req.body;
 
         // Validação
-        if (!guildId || !channelId || !message) {
+        if (!guildId || !channelId) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'guildId, channelId e message são obrigatórios' 
+                error: 'guildId e channelId são obrigatórios' 
+            });
+        }
+
+        // Pelo menos um deve estar presente: message ou embeds
+        if (!message && (!embeds || embeds.length === 0)) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'É necessário fornecer uma mensagem ou pelo menos um embed' 
             });
         }
 
