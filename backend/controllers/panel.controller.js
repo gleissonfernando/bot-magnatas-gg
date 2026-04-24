@@ -270,6 +270,23 @@ async function healthCheck(req, res) {
 }
 
 /**
+ * Endpoint de diagnóstico para testar conexão da Dashboard
+ */
+async function diagnostic(req, res) {
+    logger.info(`[DIAGNOSTIC]: Recebida tentativa de conexão da Dashboard de ${req.ip}`);
+    return res.json({ 
+        success: true, 
+        message: 'API do Bot alcançada com sucesso!',
+        timestamp: new Date().toISOString(),
+        serverInfo: {
+            node: process.version,
+            platform: process.platform,
+            botReady: discordClient?.isReady() || false
+        }
+    });
+}
+
+/**
  * Verifica se um usuário do Discord tem permissão de Dev no banco de dados do bot
  */
 async function verifyDevPermission(req, res) {
@@ -305,5 +322,6 @@ module.exports = {
     testGoodbyeMessage,
     listGuilds,
     healthCheck,
+    diagnostic,
     verifyDevPermission
 };

@@ -41,6 +41,7 @@ router.post('/test-welcome', panelController.testWelcomeMessage);
 router.post('/test-goodbye', panelController.testGoodbyeMessage);
 router.get('/guilds', panelController.listGuilds);
 router.get('/guild/test', panelController.healthCheck);
+router.get('/diagnostic', panelController.diagnostic);
 router.get('/verify-dev/:discordId', panelController.verifyDevPermission);
 
 module.exports = router;
