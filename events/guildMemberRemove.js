@@ -1,6 +1,7 @@
 const { Events, EmbedBuilder } = require('discord.js');
 const { logger } = require('../utils/logger');
 const { getGuildConfig, processMessageVariables } = require('../utils/configManager');
+const { logMemberLeave } = require('../utils/guildLogger');
 
 module.exports = {
     name: Events.GuildMemberRemove,
@@ -69,6 +70,13 @@ module.exports = {
             // 8. Enviar mensagem
             await channel.send({ embeds: [embed] });
             logger.info(`Mensagem de saída enviada para ${member.user.username} em ${guild.name}`);
+
+            // 9. Registrar no log do servidor
+            try {
+                await logMemberLeave(guild, member);
+            } catch (logError) {
+                logger.error(`Erro ao registrar log de saída:`, logError.message);
+            }
 
         } catch (error) {
             logger.error('Erro no evento guildMemberRemove:', error);

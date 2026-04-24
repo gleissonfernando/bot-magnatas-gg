@@ -1,6 +1,7 @@
 const { Events, EmbedBuilder } = require('discord.js');
 const { logger } = require('../utils/logger');
 const { getGuildConfig, processMessageVariables } = require('../utils/configManager');
+const { logMemberJoin } = require('../utils/guildLogger');
 
 module.exports = {
     name: Events.GuildMemberAdd,
@@ -69,6 +70,13 @@ module.exports = {
             // 8. Enviar mensagem
             await channel.send({ embeds: [embed] });
             logger.info(`Mensagem de boas-vindas enviada para ${member.user.username} em ${guild.name}`);
+
+            // 9. Registrar no log do servidor
+            try {
+                await logMemberJoin(guild, member);
+            } catch (logError) {
+                logger.error(`Erro ao registrar log de entrada:`, logError.message);
+            }
 
             // 9. Aplicar cargo de verificação se configurado
             if (config.verifyRoleId) {

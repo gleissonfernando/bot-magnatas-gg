@@ -1,0 +1,125 @@
+const { getGuildLogs, clearOldLogs } = require('../../utils/guildLogger');
+const { logger } = require('../../utils/logger');
+
+/**
+ * Buscar logs de um servidor
+ */
+exports.getLogs = async (req, res) => {
+  try {
+    const { guildId } = req.params;
+    const { type, userId, limit = 50, skip = 0, startDate, endDate } = req.query;
+
+    // Validar permissões
+    const hasPermission = req.user.role === 'admin' || 
+                         req.user.guilds?.includes(guildId) ||
+                         req.user.id === req.guildConfig?.ownerId;
+
+    if (!hasPermission) {
+      logger.warn(`Acesso negado aos logs de ${guildId} por ${req.user.id}`);
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Buscar logs
+    const logs = await getGuildLogs(guildId, {
+      type: type || null,
+      userId: userId || null,
+      limit: Math.min(parseInt(limit), 100),
+      skip: parseInt(skip),
+      startDate,
+      endDate
+    });
+
+    res.json(logs);
+
+  } catch (error) {
+    logger.error('Erro ao buscar logs:', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+};
+
+/**
+ * Limpar logs antigos
+ */
+exports.clearOldLogs = async (req, res) => {
+  try {
+    const { guildId } = req.params;
+    const { daysOld = 30 } = req.body;
+
+    // Apenas admin ou owner do servidor
+    const isOwner = req.user.id === req.guildConfig?.ownerId;
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      logger.warn(`Tentativa de limpar logs sem permissão por ${req.user.id}`);
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const deletedCount = await clearOldLogs(guildId, daysOld);
+
+    logger.info(`${deletedCount} logs antigos removidos do servidor ${guildId}`);
+    res.json({ success: true, deletedCount });
+
+  } catch (error) {
+    logger.error('Erro ao limpar logs:', error);
+    res.status(500).json({ error: 'Erro ao limpar logs' });
+  }
+};
+
+/**
+ * Exportar logs em CSV
+ */
+exports.exportLogs = async (req, res) => {
+  try {
+    const { guildId } = req.params;
+    const { type, startDate, endDate } = req.query;
+
+    // Validar permissões
+    const hasPermission = req.user.role === 'admin' || 
+                         req.user.id === req.guildConfig?.ownerId;
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Buscar todos os logs (sem limite)
+    const { logs } = await getGuildLogs(guildId, {
+      type: type || null,
+      limit: 10000,
+      startDate,
+      endDate
+    });
+
+    // Converter para CSV
+    const csv = convertLogsToCSV(logs);
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="logs-${guildId}-${Date.now()}.csv"`);
+    res.send(csv);
+
+  } catch (error) {
+    logger.error('Erro ao exportar logs:', error);
+    res.status(500).json({ error: 'Erro ao exportar logs' });
+  }
+};
+
+/**
+ * Converter logs para CSV
+ */
+function convertLogsToCSV(logs) {
+  const headers = ['Data', 'Tipo', 'Título', 'Descrição', 'Usuário', 'Severidade'];
+  const rows = logs.map(log => [
+    new Date(log.createdAt).toLocaleString('pt-BR'),
+    log.type,
+    log.title,
+    log.description || '',
+    log.userName || 'N/A',
+    log.severity
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+  ].join('\n');
+
+  return csvContent;
+}
