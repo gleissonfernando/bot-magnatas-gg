@@ -5,9 +5,8 @@ const config = require('./config/config');
 const { handleCallInteraction, handleModal, handleVoiceStateUpdate } = require('./config/callManager');
 
 // Importar o backend Express para registrar o cliente Discord
-let expressApp = null;
 try {
-    const backendIndex = require('./backend/index.js');
+    require('./backend/index.js');
 } catch (e) {
     console.warn('[Bot] Backend não está rodando em paralelo.');
 }
@@ -44,15 +43,16 @@ for (const folder of commandFolders) {
 
 // Load Events
 const eventsPath = path.join(__dirname, 'events');
-const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-
-for (const file of eventFiles) {
-    const filePath = path.join(eventsPath, file);
-    const event = require(filePath);
-    if (event.once) {
-        client.once(event.name, (...args) => event.execute(...args));
-    } else {
-        client.on(event.name, (...args) => event.execute(...args));
+if (fs.existsSync(eventsPath)) {
+    const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+    for (const file of eventFiles) {
+        const filePath = path.join(eventsPath, file);
+        const event = require(filePath);
+        if (event.once) {
+            client.once(event.name, (...args) => event.execute(...args));
+        } else {
+            client.on(event.name, (...args) => event.execute(...args));
+        }
     }
 }
 
@@ -84,7 +84,9 @@ client.once('ready', async () => {
     try {
         const panelController = require('./backend/controllers/panel.controller');
         panelController.setDiscordClient(client);
-    } catch (e) {}
+    } catch (e) {
+        console.error('[Bot] Erro ao registrar cliente no controlador:', e);
+    }
     await registerCommands();
 });
 

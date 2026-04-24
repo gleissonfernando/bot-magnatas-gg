@@ -1,4 +1,5 @@
-const { Client, ChannelType } = require('discord.js');
+const { ChannelType, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const mongoose = require('mongoose');
 
 /**
  * Referência global ao cliente Discord
@@ -64,19 +65,37 @@ async function sendMessage(req, res) {
             });
         }
 
-        // Verificar se o canal é um canal de texto
-        if (channel.type !== ChannelType.GuildText) {
+        // Verificar se o canal é um canal de texto ou anúncios
+        if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'Canal não é um canal de texto' 
+                error: 'Canal não é um canal de texto ou anúncios' 
             });
         }
 
         // Verificar permissões do bot
-        if (!channel.permissionsFor(guild.members.me).has('SendMessages')) {
+        const permissions = channel.permissionsFor(guild.members.me);
+        if (!permissions.has(PermissionFlagsBits.SendMessages)) {
             return res.status(403).json({ 
                 success: false, 
                 error: 'Bot não tem permissão para enviar mensagens neste canal' 
+            });
+        }
+
+        // Formatar embeds se fornecidos
+        let formattedEmbeds = [];
+        if (embeds && Array.isArray(embeds)) {
+            formattedEmbeds = embeds.map(e => {
+                const embed = new EmbedBuilder();
+                if (e.title) embed.setTitle(e.title);
+                if (e.description) embed.setDescription(e.description);
+                if (e.color) embed.setColor(e.color);
+                if (e.fields) embed.addFields(e.fields);
+                if (e.image) embed.setImage(e.image.url || e.image);
+                if (e.thumbnail) embed.setThumbnail(e.thumbnail.url || e.thumbnail);
+                if (e.footer) embed.setFooter({ text: e.footer.text || e.footer, iconURL: e.footer.icon_url });
+                if (e.timestamp) embed.setTimestamp(new Date(e.timestamp));
+                return embed;
             });
         }
 
@@ -84,8 +103,8 @@ async function sendMessage(req, res) {
         console.log(`[Bot] Tentando enviar mensagem real para o canal ${channelId} no servidor ${guildId}`);
         
         const sentMessage = await channel.send({
-            content: message,
-            embeds: embeds || []
+            content: message || null,
+            embeds: formattedEmbeds
         });
 
         console.log(`[Bot] Mensagem real enviada com sucesso! ID: ${sentMessage.id}`);
@@ -131,13 +150,17 @@ async function getGuildSettings(req, res) {
         }
 
         // Buscar configurações do banco de dados
-        const mongoose = require('mongoose');
         const GuildSettings = mongoose.models.GuildSettings;
         
         let settings = null;
         if (GuildSettings) {
             settings = await GuildSettings.findOne({ guildId });
         }
+
+        // Obter dados reais do servidor
+        const textChannels = guild.channels.cache
+            .filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
+            .map(c => ({ id: c.id, name: c.name }));
 
         return res.json({
             success: true,
@@ -146,7 +169,9 @@ async function getGuildSettings(req, res) {
                 name: guild.name,
                 icon: guild.iconURL(),
                 memberCount: guild.memberCount,
-                ownerId: guild.ownerId
+                ownerId: guild.ownerId,
+                channels: textChannels,
+                approximate_member_count: guild.memberCount
             },
             settings: settings || {
                 guildId,
@@ -191,14 +216,13 @@ async function updateGuildSettings(req, res) {
         }
 
         // Atualizar no banco de dados
-        const mongoose = require('mongoose');
         const GuildSettings = mongoose.models.GuildSettings;
         
         let settings = null;
         if (GuildSettings) {
             settings = await GuildSettings.findOneAndUpdate(
                 { guildId },
-                { ...updates, guildId },
+                { ...updates, guildId, updatedAt: new Date() },
                 { upsert: true, new: true }
             );
         }
@@ -231,7 +255,7 @@ async function testWelcomeMessage(req, res) {
             });
         }
 
-        const { guildId, channelId } = req.body;
+        const { guildId, channelId, title, message, imageUrl } = req.body;
 
         if (!guildId || !channelId) {
             return res.status(400).json({ 
@@ -249,25 +273,28 @@ async function testWelcomeMessage(req, res) {
         }
 
         const channel = guild.channels.cache.get(channelId);
-        if (!channel || channel.type !== ChannelType.GuildText) {
+        if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement)) {
             return res.status(404).json({ 
                 success: false, 
                 error: 'Canal de texto não encontrado' 
             });
         }
 
-        // Enviar mensagem de teste
-        const testMessage = {
-            content: '👋 **Bem-vindo ao servidor!**\n\nEsta é uma mensagem de teste de boas-vindas.',
-            embeds: [{
-                title: '🎉 Bem-vindo!',
-                description: 'Você foi adicionado ao servidor com sucesso.',
-                color: 0x00FF00,
-                timestamp: new Date()
-            }]
-        };
+        // Enviar mensagem de teste real
+        const embed = new EmbedBuilder()
+            .setTitle(title || '👑 Bem-vindo(a) ao clã Magnatas')
+            .setDescription(message || 'seja bem-vindo ao império Magnatas.')
+            .setColor(0xFF0000)
+            .setThumbnail(discordClient.user.displayAvatarURL())
+            .setFooter({ text: 'Magnatas.gg • Teste de Boas-vindas' })
+            .setTimestamp();
 
-        const sentMessage = await channel.send(testMessage);
+        if (imageUrl) embed.setImage(imageUrl);
+
+        const sentMessage = await channel.send({
+            content: `👋 **Teste de Boas-vindas**`,
+            embeds: [embed]
+        });
 
         return res.json({
             success: true,
@@ -297,7 +324,7 @@ async function testGoodbyeMessage(req, res) {
             });
         }
 
-        const { guildId, channelId } = req.body;
+        const { guildId, channelId, title, message, imageUrl } = req.body;
 
         if (!guildId || !channelId) {
             return res.status(400).json({ 
@@ -315,25 +342,28 @@ async function testGoodbyeMessage(req, res) {
         }
 
         const channel = guild.channels.cache.get(channelId);
-        if (!channel || channel.type !== ChannelType.GuildText) {
+        if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement)) {
             return res.status(404).json({ 
                 success: false, 
                 error: 'Canal de texto não encontrado' 
             });
         }
 
-        // Enviar mensagem de teste
-        const testMessage = {
-            content: '👋 **Até logo!**\n\nEsta é uma mensagem de teste de despedida.',
-            embeds: [{
-                title: '😢 Adeus!',
-                description: 'Um membro saiu do servidor.',
-                color: 0xFF0000,
-                timestamp: new Date()
-            }]
-        };
+        // Enviar mensagem de teste real
+        const embed = new EmbedBuilder()
+            .setTitle(title || '🚪 Saída do clã Magnatas')
+            .setDescription(message || 'saiu do império Magnatas.')
+            .setColor(0xFF0000)
+            .setThumbnail(discordClient.user.displayAvatarURL())
+            .setFooter({ text: 'Magnatas.gg • Teste de Despedida' })
+            .setTimestamp();
 
-        const sentMessage = await channel.send(testMessage);
+        if (imageUrl) embed.setImage(imageUrl);
+
+        const sentMessage = await channel.send({
+            content: `👋 **Teste de Despedida**`,
+            embeds: [embed]
+        });
 
         return res.json({
             success: true,
@@ -384,6 +414,24 @@ async function listGuilds(req, res) {
     }
 }
 
+/**
+ * Healthcheck para o monitoramento
+ * GET /api/panel/guild/test
+ */
+async function healthCheck(req, res) {
+    if (!discordClient || !discordClient.isReady()) {
+        return res.status(503).json({ success: false, status: 'offline' });
+    }
+    return res.json({ 
+        success: true, 
+        status: 'online',
+        uptime: discordClient.uptime,
+        ping: discordClient.ws.ping,
+        guilds: discordClient.guilds.cache.size,
+        timestamp: new Date()
+    });
+}
+
 module.exports = {
     setDiscordClient,
     sendMessage,
@@ -391,5 +439,6 @@ module.exports = {
     updateGuildSettings,
     testWelcomeMessage,
     testGoodbyeMessage,
-    listGuilds
+    listGuilds,
+    healthCheck
 };
