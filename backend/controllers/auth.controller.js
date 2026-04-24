@@ -6,7 +6,8 @@ const { logger } = require('../../utils/logger');
 exports.login = (req, res) => {
     // Escopos expandidos para garantir que o bot tenha todas as permissões necessárias via OAuth2
     const scopes = ['identify', 'email', 'guilds', 'guilds.join'].join(' ');
-    const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID)}&redirect_uri=${encodeURIComponent((process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI))}&response_type=code&scope=${encodeURIComponent(scopes)}`;
+    const redirectUri = process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI;
+    const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}`;
     
     logger.info('Iniciando fluxo de login OAuth2');
     res.redirect(oauthUrl);
@@ -28,7 +29,7 @@ exports.callback = async (req, res) => {
             client_secret: (process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET),
             grant_type: 'authorization_code',
             code: code,
-            redirect_uri: (process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI),
+            redirect_uri: process.env.DISCORD_REDIRECT_URI || process.env.REDIRECT_URI,
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const accessToken = tokenResponse.data.access_token;
