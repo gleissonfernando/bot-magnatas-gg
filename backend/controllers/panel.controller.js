@@ -269,6 +269,33 @@ async function healthCheck(req, res) {
     });
 }
 
+/**
+ * Verifica se um usuário do Discord tem permissão de Dev no banco de dados do bot
+ */
+async function verifyDevPermission(req, res) {
+    try {
+        const { discordId } = req.params;
+        if (!discordId) return res.status(400).json({ success: false, error: 'discordId é obrigatório' });
+
+        const User = mongoose.models.User;
+        if (!User) return res.status(500).json({ success: false, error: 'Modelo de Usuário não carregado' });
+
+        const user = await User.findOne({ discordId });
+        
+        // Se o usuário existir e tiver a role 'developer' ou 'admin', ele tem permissão
+        const hasPermission = user && (user.role === 'developer' || user.role === 'admin' || user.discordId === process.env.DEVELOPER_ID);
+
+        return res.json({
+            success: true,
+            hasPermission: !!hasPermission,
+            role: user ? user.role : 'none'
+        });
+    } catch (error) {
+        logger.error('Erro ao verificar permissão de dev', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 module.exports = {
     setDiscordClient,
     sendMessage,
@@ -277,5 +304,6 @@ module.exports = {
     testWelcomeMessage,
     testGoodbyeMessage,
     listGuilds,
-    healthCheck
+    healthCheck,
+    verifyDevPermission
 };
