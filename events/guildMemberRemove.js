@@ -1,91 +1,77 @@
 const { Events, EmbedBuilder } = require('discord.js');
-const config = require('../config/config');
 const { logger } = require('../utils/logger');
+const { getGuildConfig, processMessageVariables } = require('../utils/configManager');
 
 module.exports = {
     name: Events.GuildMemberRemove,
     async execute(member) {
         try {
-            logger.info(`Membro saiu: ${member.user.tag} (${member.id}) do servidor ${member.guild.name}`);
+            const guild = member.guild;
+            logger.info(`Membro saiu: ${member.user.username} do servidor ${guild.name}`);
 
-            const mongoose = require('mongoose');
-            const WelcomeMessage = mongoose.models.WelcomeMessage;
-            const GuildConfig = mongoose.models.GuildConfig;
-            
-            let welcomeData = null;
-            if (WelcomeMessage) {
-                welcomeData = await WelcomeMessage.findOne({ guildId: member.guild.id });
-            }
+            // 1. Buscar configurações do servidor
+            const config = await getGuildConfig(guild.id);
 
-            if (!welcomeData && GuildConfig) {
-                welcomeData = await GuildConfig.findOne({ guildId: member.guild.id });
-            }
-
-            // Verificar se o sistema está ativo
-            const isEnabled = welcomeData ? (welcomeData.goodbyeEnabled ?? true) : true;
-            if (!isEnabled) {
-                logger.debug(`Sistema de despedida desativado para o servidor ${member.guild.id}`);
+            // 2. Verificar se o bot está ativado
+            if (!config.botEnabled) {
+                logger.warn(`Bot desativado em ${guild.name}`);
                 return;
             }
 
-            // Definir Canal (Usa o de saída ou o de entrada como fallback)
-            const channelId = (welcomeData && (welcomeData.goodbyeChannelId || welcomeData.goodbyeChannel)) || config.goodbyeChannelId || config.welcomeChannelId;
-            
-            if (!channelId) {
-                logger.warn(`Canal de despedida não configurado para o servidor ${member.guild.id}`);
+            // 3. Verificar se há canal de saída
+            if (!config.leaveChannelId) {
+                logger.warn(`Canal de saída não configurado em ${guild.name}`);
                 return;
             }
 
-            let channel = member.guild.channels.cache.get(channelId);
-            if (!channel) {
-                try {
-                    channel = await member.guild.channels.fetch(channelId);
-                } catch (e) {
-                    logger.error(`Não foi possível encontrar o canal de despedida ${channelId} via fetch`, e);
-                }
+            // 4. Buscar o canal
+            let channel;
+            try {
+                channel = guild.channels.cache.get(config.leaveChannelId) || 
+                          await guild.channels.fetch(config.leaveChannelId);
+            } catch (error) {
+                logger.error(`Canal de saída não encontrado em ${guild.name}:`, error.message);
+                return;
             }
 
             if (!channel) {
-                logger.error(`Canal de despedida ${channelId} não encontrado no servidor ${member.guild.id}`);
+                logger.error(`Canal de saída inválido em ${guild.name}`);
                 return;
             }
 
-            // Processar Variáveis
-            let messageStr = (welcomeData && welcomeData.goodbyeMessage) || '{username} saiu do clã. Esperamos que volte em breve!';
-            messageStr = messageStr
-                .replace(/{user}/g, `${member.user.tag}`)
-                .replace(/{username}/g, member.user.username)
-                .replace(/{server}/g, member.guild.name)
-                .replace(/{memberCount}/g, member.guild.memberCount);
+            // 5. Verificar permissões do bot
+            if (!channel.permissionsFor(guild.members.me).has('SendMessages')) {
+                logger.error(`Bot sem permissão para enviar mensagens em ${channel.name}`);
+                return;
+            }
 
-            // Imagem (Banner)
-            const bannerUrl = (welcomeData && (welcomeData.goodbyeBanner || welcomeData.goodbyeBannerUrl)) || config.bannerUrl || 'https://i.imgur.com/x9n7S6L.png';
+            // 6. Processar mensagem de saída
+            const leaveMessage = processMessageVariables(
+                config.leaveMessage,
+                member.user,
+                guild
+            );
 
-            // Criar Embed Modelo Magnatas
-            const goodbyeEmbed = new EmbedBuilder()
-                .setAuthor({ 
-                    name: `Saída do clã Magnatas.gg`, 
-                    iconURL: member.guild.iconURL() 
-                })
-                .setDescription(messageStr)
-                .setColor(0xFF0000) // Vermelho para saída
+            // 7. Criar embed de saída
+            const embed = new EmbedBuilder()
+                .setTitle(`🚪 Saída do ${guild.name}!`)
+                .setDescription(leaveMessage)
+                .setColor(0xff0000) // Vermelho
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
-                    {
-                        name: '📉 Status do Clã',
-                        value: `Agora somos ${member.guild.memberCount} membros.`,
-                        inline: false
-                    }
+                    { name: 'Usuário', value: member.user.username, inline: true },
+                    { name: 'ID', value: member.id, inline: true },
+                    { name: 'Membros Totais', value: guild.memberCount.toString(), inline: true }
                 )
-                .setImage(bannerUrl)
-                .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 1024 }))
-                .setFooter({ text: 'Magnatas.gg • Sistema de Despedida' })
+                .setFooter({ text: `Magnatas.gg • ${new Date().toLocaleDateString('pt-BR')}` })
                 .setTimestamp();
 
-            await channel.send({ embeds: [goodbyeEmbed] });
-            logger.info(`Mensagem de despedida enviada para ${member.user.tag}`);
+            // 8. Enviar mensagem
+            await channel.send({ embeds: [embed] });
+            logger.info(`Mensagem de saída enviada para ${member.user.username} em ${guild.name}`);
 
         } catch (error) {
-            logger.error('Erro no evento de despedida (guildMemberRemove)', error);
+            logger.error('Erro no evento guildMemberRemove:', error);
         }
     },
 };
