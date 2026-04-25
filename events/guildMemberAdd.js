@@ -1,5 +1,6 @@
 const { Events, EmbedBuilder } = require('discord.js');
 const { logger } = require('../utils/logger');
+const discordLogger = require('../utils/discordLogger');
 const { getGuildConfig, processMessageVariables } = require('../utils/configManager');
 const { logMemberJoin } = require('../utils/guildLogger');
 
@@ -10,7 +11,26 @@ module.exports = {
             const guild = member.guild;
             logger.info(`Novo membro: ${member.user.username} entrou em ${guild.name}`);
 
-            // 1. Buscar configurações do servidor
+            // --- NOVO: Boas-vindas via DM ---
+            try {
+                const dmWelcomeEmbed = new EmbedBuilder()
+                    .setTitle(`Bem-vindo(a) ao ${guild.name}!`)
+                    .setDescription(`Olá ${member.user.username}, ficamos felizes em ter você aqui!\n\nPara começar, dê uma olhada no canal <#1491495209794797578>.`)
+                    .setColor(0x00FF00)
+                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                    .setTimestamp();
+
+            await member.send({ embeds: [dmWelcomeEmbed] });
+            logger.info(`Mensagem de boas-vindas enviada para a DM de ${member.user.tag}`);
+        } catch (dmError) {
+            logger.warn(`Não foi possível enviar DM de boas-vindas para ${member.user.tag}: ${dmError.message}`);
+        }
+        // --------------------------------
+
+        // Enviar log de entrada para o canal de logs
+        await discordLogger.logJoin(member);
+
+        // 1. Buscar configurações do servidor
             const config = await getGuildConfig(guild.id);
 
             // 2. Verificar se o bot está ativado

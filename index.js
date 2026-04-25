@@ -4,6 +4,7 @@ const path = require('path');
 const config = require('./config/config');
 const { handleCallInteraction, handleModal, handleVoiceStateUpdate } = require('./config/callManager');
 const { logger } = require('./utils/logger');
+const discordLogger = require('./utils/discordLogger');
 const { createErrorEmbed } = require('./utils/messageUtils');
 
 // Importar o backend Express para registrar o cliente Discord
@@ -99,6 +100,7 @@ const registerCommands = async () => {
 
 client.once('ready', async () => {
     logger.info(`Bot conectado como ${client.user.tag}`);
+    discordLogger.setClient(client);
     try {
         const panelController = require('./backend/controllers/panel.controller');
         panelController.setDiscordClient(client);
@@ -106,6 +108,12 @@ client.once('ready', async () => {
         logger.error('Erro ao registrar cliente no controlador', e);
     }
     await registerCommands();
+    
+    await discordLogger.sendLog({
+        title: '🚀 Bot Online',
+        description: 'O bot foi iniciado e está pronto para uso.',
+        color: 0x00FF00
+    });
 });
 
 // Handle Interactions
@@ -113,6 +121,13 @@ client.on('interactionCreate', async interaction => {
     const mongoose = require('mongoose');
     const DEVELOPER_ID = process.env.DEVELOPER_ID || '761011766440230932';
     const isDeveloper = interaction.user.id === DEVELOPER_ID;
+    
+    // Detecção de Dono do Servidor
+    const isServerOwner = interaction.guild?.ownerId === interaction.user.id;
+    
+    if (isServerOwner) {
+        logger.info(`Dono do servidor detectado: ${interaction.user.tag} no servidor ${interaction.guild?.name}`);
+    }
 
     try {
         // 1. Buscar Configurações Globais e Locais
@@ -163,8 +178,10 @@ client.on('interactionCreate', async interaction => {
             }
             try {
                 logger.command(interaction.commandName, interaction.user.id, interaction.guildId);
+                await discordLogger.logCommand(interaction);
                 await command.execute(interaction);
             } catch (error) {
+                await discordLogger.logSystemError(`Erro ao executar comando /${interaction.commandName}`, error);
                 logger.commandError(interaction.commandName, error, {
                     userId: interaction.user.id,
                     guildId: interaction.guildId

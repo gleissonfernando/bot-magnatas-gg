@@ -1,5 +1,6 @@
 const { Events, EmbedBuilder } = require('discord.js');
 const { logger } = require('../utils/logger');
+const discordLogger = require('../utils/discordLogger');
 const { getGuildConfig, processMessageVariables } = require('../utils/configManager');
 const { logMemberLeave } = require('../utils/guildLogger');
 
@@ -10,7 +11,26 @@ module.exports = {
             const guild = member.guild;
             logger.info(`Membro saiu: ${member.user.username} do servidor ${guild.name}`);
 
-            // 1. Buscar configurações do servidor
+            // --- NOVO: Despedida via DM ---
+            try {
+                const goodbyeEmbed = new EmbedBuilder()
+                    .setTitle(`Sentiremos sua falta no ${guild.name}!`)
+                    .setDescription(`Olá ${member.user.username}, vimos que você saiu do servidor. Esperamos que tenha tido uma boa experiência e que volte em breve!`)
+                    .setColor(0xFF0000)
+                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                    .setTimestamp();
+
+            await member.send({ embeds: [goodbyeEmbed] });
+            logger.info(`Mensagem de despedida enviada para a DM de ${member.user.tag}`);
+        } catch (dmError) {
+            logger.warn(`Não foi possível enviar DM de despedida para ${member.user.tag}: ${dmError.message}`);
+        }
+        // --------------------------------
+
+        // Enviar log de saída para o canal de logs
+        await discordLogger.logLeave(member);
+
+        // 1. Buscar configurações do servidor
             const config = await getGuildConfig(guild.id);
 
             // 2. Verificar se o bot está ativado
