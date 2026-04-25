@@ -269,10 +269,51 @@ process.on('unhandledRejection', (reason, promise) => {
     logger.error('Promise rejeitada não tratada', new Error(String(reason)), { promise: String(promise) });
 });
 
-process.on('uncaughtException', (error) => {
-    logger.critical('Exceção não capturada', error);
+process.on('uncaughtException', async (error) => {
+    await logger.critical('Exceção não capturada', error);
     process.exit(1);
 });
+
+// Captura de sinais de desligamento
+const handleShutdown = async (signal) => {
+    logger.info(`Sinal de desligamento recebido: ${signal}`);
+    
+    const developerId = config.developerId || process.env.DEVELOPER_ID;
+    if (client && client.isReady()) {
+        try {
+            // 1. Alerta no canal de logs
+            await discordLogger.sendLog({
+                title: '🛑 Bot Desligando',
+                description: `O bot está sendo desligado (Sinal: ${signal}).`,
+                color: 0xFFA500
+            });
+
+            // 2. Alerta na DM do desenvolvedor
+            if (developerId) {
+                const developer = await client.users.fetch(developerId);
+                if (developer) {
+                    const shutdownEmbed = new EmbedBuilder()
+                        .setTitle('⚠️ Alerta de Desligamento')
+                        .setDescription(`O bot **${client.user.tag}** recebeu um sinal de desligamento: \`${signal}\`.`)
+                        .setColor(0xFFA500)
+                        .setTimestamp();
+                    
+                    await developer.send({ embeds: [shutdownEmbed] });
+                }
+            }
+        } catch (err) {
+            logger.error('Erro ao enviar alertas de desligamento', err);
+        }
+    }
+    
+    // Pequeno delay para garantir o envio das mensagens
+    setTimeout(() => {
+        process.exit(0);
+    }, 2000);
+};
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
 // Limpeza de logs antigos a cada 24 horas
 setInterval(() => {

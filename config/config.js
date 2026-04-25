@@ -7,6 +7,7 @@ module.exports = {
     roleId: process.env.DISCORD_VERIFIED_ROLE_ID || process.env.DISCORD_ROLE_ID,
     logChannelId: process.env.DISCORD_LOG_CHANNEL_ID,
     bannerUrl: process.env.DISCORD_BANNER_URL,
+    externalApiKey: process.env.EXTERNAL_API_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzY4MjYwMzEsInVzZXJfaWQiOiI1MGQyOTI1YS1hNzYzLTRlOTEtOTkyYS0zMWVkNjQ3NTdjOTYifQ.zX5DCLZkIGepiLUiNRrjL29KfdFWBY9_NX52I2NSdEs',
     welcomeChannelId: process.env.WELCOME_CHANNEL_ID || '',
     goodbyeChannelId: process.env.GOODBYE_CHANNEL_ID || '',
     developerId: process.env.DEVELOPER_ID || '',

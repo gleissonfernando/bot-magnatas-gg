@@ -12,6 +12,13 @@ function setClient(client) {
 }
 
 /**
+ * Retorna o cliente do Discord
+ */
+function getClient() {
+    return discordClient;
+}
+
+/**
  * Envia um log para o canal do Discord
  */
 async function sendLog(options) {

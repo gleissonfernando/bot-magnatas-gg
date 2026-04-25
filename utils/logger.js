@@ -234,14 +234,55 @@ class Logger {
     }
 
     /**
-     * Envia alerta (placeholder para integração)
+     * Envia alerta para o Discord (DM e Canal de Logs)
      * @param {string} message - Mensagem
      * @param {Error} error - Erro
      * @param {object} meta - Metadados
      */
-    sendAlert(message, error, meta) {
-        // TODO: Integrar com Discord webhook, email, ou outro sistema de alertas
-        console.log('🚨 ALERTA CRÍTICO:', message);
+    async sendAlert(message, error, meta) {
+        try {
+            const discordLogger = require('./discordLogger');
+            const config = require('../config/config');
+            
+            // 1. Enviar para o canal de logs
+            await discordLogger.sendLog({
+                title: '🚨 Alerta Crítico do Sistema',
+                description: message,
+                color: 0xFF0000,
+                fields: [
+                    { name: 'Erro', value: `\`\`\`${error?.message || 'N/A'}\`\`\``, inline: false },
+                    { name: 'Metadados', value: `\`\`\`${JSON.stringify(meta, null, 2)}\`\`\``, inline: false }
+                ]
+            });
+
+            // 2. Enviar para a DM do desenvolvedor
+            const client = discordLogger.getClient();
+            const developerId = config.developerId || process.env.DEVELOPER_ID;
+            
+            if (client && developerId) {
+                try {
+                    const developer = await client.users.fetch(developerId);
+                    if (developer) {
+                        const { EmbedBuilder } = require('discord.js');
+                        const errorEmbed = new EmbedBuilder()
+                            .setTitle('❌ Erro Crítico Detectado')
+                            .setDescription(message)
+                            .setColor(0xFF0000)
+                            .addFields(
+                                { name: 'Mensagem de Erro', value: `\`\`\`${error?.message || 'Erro desconhecido'}\`\`\`` },
+                                { name: 'Stack Trace', value: `\`\`\`${error?.stack?.substring(0, 1000) || 'Sem stack trace'}\`\`\`` }
+                            )
+                            .setTimestamp();
+                        
+                        await developer.send({ embeds: [errorEmbed] });
+                    }
+                } catch (dmError) {
+                    console.error('Erro ao enviar DM de alerta:', dmError);
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao processar alerta crítico:', err);
+        }
     }
 
     /**
