@@ -5,6 +5,7 @@ const config = require('./config/config');
 const { handleCallInteraction, handleModal, handleVoiceStateUpdate } = require('./config/callManager');
 const { logger } = require('./utils/logger');
 const discordLogger = require('./utils/discordLogger');
+const socketService = require('./utils/socketService');
 const { createErrorEmbed } = require('./utils/messageUtils');
 
 // Importar o backend Express para registrar o cliente Discord
@@ -114,6 +115,29 @@ client.once('ready', async () => {
         description: 'O bot foi iniciado e está pronto para uso.',
         color: 0x00FF00
     });
+
+    // Inicializar conexão em tempo real com o painel
+    socketService.init(client);
+
+    // Alerta no privado do desenvolvedor
+    const developerId = config.developerId || process.env.DEVELOPER_ID;
+    if (developerId) {
+        try {
+            const developer = await client.users.fetch(developerId);
+            if (developer) {
+                const restartEmbed = new EmbedBuilder()
+                    .setTitle('🔄 Bot Inicializado/Reiniciado')
+                    .setDescription(`O bot **${client.user.tag}** foi iniciado com sucesso e está online.`)
+                    .setColor(0x00FF00)
+                    .setTimestamp();
+                
+                await developer.send({ embeds: [restartEmbed] });
+                logger.info(`Alerta de inicialização enviado para o desenvolvedor: ${developer.tag}`);
+            }
+        } catch (err) {
+            logger.error('Erro ao enviar alerta de inicialização no privado', err);
+        }
+    }
 });
 
 // Handle Interactions
