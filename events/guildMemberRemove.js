@@ -11,7 +11,7 @@ module.exports = {
             const guild = member.guild;
             logger.info(`Membro saiu: ${member.user.username} do servidor ${guild.name}`);
 
-            // --- NOVO: Despedida via DM ---
+            // --- Despedida via DM (try/catch corretamente aninhado) ---
             try {
                 const goodbyeEmbed = new EmbedBuilder()
                     .setTitle(`Sentiremos sua falta no ${guild.name}!`)
@@ -19,18 +19,17 @@ module.exports = {
                     .setColor(0xFF0000)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
+                await member.send({ embeds: [goodbyeEmbed] });
+                logger.info(`Mensagem de despedida enviada para a DM de ${member.user.tag}`);
+            } catch (dmError) {
+                logger.warn(`Não foi possível enviar DM de despedida para ${member.user.tag}: ${dmError.message}`);
+            }
+            // --------------------------------
 
-            await member.send({ embeds: [goodbyeEmbed] });
-            logger.info(`Mensagem de despedida enviada para a DM de ${member.user.tag}`);
-        } catch (dmError) {
-            logger.warn(`Não foi possível enviar DM de despedida para ${member.user.tag}: ${dmError.message}`);
-        }
-        // --------------------------------
+            // Enviar log de saída para o canal de logs
+            await discordLogger.logLeave(member);
 
-        // Enviar log de saída para o canal de logs
-        await discordLogger.logLeave(member);
-
-        // 1. Buscar configurações do servidor
+            // 1. Buscar configurações do servidor
             const config = await getGuildConfig(guild.id);
 
             // 2. Verificar se o bot está ativado
@@ -48,7 +47,7 @@ module.exports = {
             // 4. Buscar o canal
             let channel;
             try {
-                channel = guild.channels.cache.get(config.leaveChannelId) || 
+                channel = guild.channels.cache.get(config.leaveChannelId) ||
                           await guild.channels.fetch(config.leaveChannelId);
             } catch (error) {
                 logger.error(`Canal de saída não encontrado em ${guild.name}:`, error.message);
@@ -77,7 +76,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setTitle(`🚪 Saída do ${guild.name}!`)
                 .setDescription(leaveMessage)
-                .setColor(0xff0000) // Vermelho
+                .setColor(0xff0000)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: 'Usuário', value: member.user.username, inline: true },

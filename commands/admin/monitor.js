@@ -1,6 +1,25 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const mongoose = require('mongoose');
 
+// ─── Modelos opcionais — registrar aqui para garantir que existam ──────────────
+const ServiceMetricSchema = new mongoose.Schema({
+    service:   { type: String, required: true },
+    status:    { type: String, default: 'Desconhecido' },
+    latency:   { type: Number, default: null },
+    createdAt: { type: Date, default: Date.now }
+});
+const MonitorConfigSchema = new mongoose.Schema({
+    guildId:        { type: String, required: true, unique: true },
+    alertChannelId: { type: String, default: null },
+    enabled:        { type: Boolean, default: false },
+    updatedBy:      { type: String, default: null }
+});
+const ServiceMetric = mongoose.models.ServiceMetric
+    || mongoose.model('ServiceMetric', ServiceMetricSchema);
+const MonitorConfig = mongoose.models.MonitorConfig
+    || mongoose.model('MonitorConfig', MonitorConfigSchema);
+// ──────────────────────────────────────────────────────────────────────────────
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('monitor')
@@ -34,11 +53,7 @@ module.exports = {
             await interaction.deferReply();
             
             try {
-                // Importar dinamicamente o motor de monitoramento se possível, 
-                // ou buscar do banco de dados as últimas métricas
-                const ServiceMetric = mongoose.models.ServiceMetric;
-                const services = ["Dashboard", "Bot", "Database", "Discord API", "Verificador"];
-                
+                const services = ['Dashboard', 'Bot', 'Database', 'Discord API', 'Verificador'];
                 const embed = new EmbedBuilder()
                     .setTitle('📊 Status do Sistema Magnatas')
                     .setColor(0xFF0000)
@@ -46,14 +61,18 @@ module.exports = {
                     .setFooter({ text: 'Magnatas.gg • Monitoramento em Tempo Real' });
 
                 for (const serviceName of services) {
-                    const lastMetric = await ServiceMetric.findOne({ service: serviceName }).sort({ createdAt: -1 });
+                    let lastMetric = null;
+                    try {
+                        lastMetric = await ServiceMetric.findOne({ service: serviceName }).sort({ createdAt: -1 });
+                    } catch (dbErr) {
+                        // Banco não conectado ou modelo indisponível — continua com null
+                    }
                     const statusEmoji = lastMetric?.status === 'Online' ? '🟢' : '🔴';
                     const latency = lastMetric?.latency ? `\`${lastMetric.latency}ms\`` : 'N/A';
-                    
-                    embed.addFields({ 
-                        name: `${statusEmoji} ${serviceName}`, 
-                        value: `Status: **${lastMetric?.status || 'Desconhecido'}**\nLatência: ${latency}`, 
-                        inline: true 
+                    embed.addFields({
+                        name: `${statusEmoji} ${serviceName}`,
+                        value: `Status: **${lastMetric?.status || 'Desconhecido'}**\nLatência: ${latency}`,
+                        inline: true
                     });
                 }
 
@@ -66,8 +85,12 @@ module.exports = {
 
         if (subcommand === 'config') {
             try {
-                const MonitorConfig = mongoose.models.MonitorConfig;
-                const config = await MonitorConfig.findOne({ guildId: interaction.guildId });
+                let config = null;
+                try {
+                    config = await MonitorConfig.findOne({ guildId: interaction.guildId });
+                } catch (dbErr) {
+                    // Banco não conectado — continua com null
+                }
 
                 const embed = new EmbedBuilder()
                     .setTitle('⚙️ Configuração de Monitoramento')
@@ -87,10 +110,13 @@ module.exports = {
 
         if (subcommand === 'test') {
             await interaction.deferReply({ ephemeral: true });
-            
             try {
-                const MonitorConfig = mongoose.models.MonitorConfig;
-                const config = await MonitorConfig.findOne({ guildId: interaction.guildId });
+                let config = null;
+                try {
+                    config = await MonitorConfig.findOne({ guildId: interaction.guildId });
+                } catch (dbErr) {
+                    // Banco não conectado — continua com null
+                }
 
                 if (!config || !config.alertChannelId) {
                     return interaction.editReply('❌ Nenhum canal de alerta configurado para este servidor.');
@@ -104,7 +130,7 @@ module.exports = {
                     .setFooter({ text: 'Magnatas.gg • Teste de Sistema' })
                     .setTimestamp();
 
-                const channel = await interaction.guild.channels.fetch(config.alertChannelId);
+                const channel = await interaction.guild.channels.fetch(config.alertChannelId).catch(() => null);
                 if (channel) {
                     await channel.send({ embeds: [testEmbed] });
                     await interaction.editReply(`✅ Alerta de teste enviado em <#${config.alertChannelId}>!`);

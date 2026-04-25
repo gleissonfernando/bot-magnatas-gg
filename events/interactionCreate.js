@@ -1,20 +1,19 @@
+/**
+ * Evento de criação de interação — Magnatas.gg
+ *
+ * NOTA: O handler principal de interações (com suporte a manutenção, logs,
+ * botões e modais) está registrado diretamente no index.js via client.on().
+ * Este arquivo é mantido apenas para compatibilidade com o loader de eventos,
+ * mas NÃO executa nenhuma lógica para evitar dupla execução.
+ *
+ * Toda a lógica de comandos, botões e modais está em index.js.
+ */
 const { Events } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
 
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        if (!interaction.isChatInputCommand()) return;
-
-        const command = interaction.client.commands.get(interaction.commandName);
-        if (!command) return;
-
-        try {
-            await command.execute(interaction);
-        } catch (error) {
-            console.error(error);
-            await interaction.reply({ content: '❌ Ocorreu um erro ao executar este comando!', ephemeral: true });
-        }
+        // Intencionalmente vazio — o handler completo está no index.js
+        // para evitar dupla execução de comandos e conflito de respostas.
     },
 };

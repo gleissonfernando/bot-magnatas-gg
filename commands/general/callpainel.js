@@ -1,10 +1,11 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('callpainel')
         .setDescription('Abre o painel de gerenciamento de calls temporárias')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Everyone),
+        // Sem restrição de permissão — qualquer membro pode usar o painel de calls
+    ,
     async execute(interaction) {
         const embed = new EmbedBuilder()
             .setAuthor({ name: 'Magnatas.gg - Controle de Voz', iconURL: interaction.client.user.displayAvatarURL() })

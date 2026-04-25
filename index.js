@@ -16,15 +16,15 @@ try {
 }
 
 // Initialize Client
-// Gateway Intents otimizados para máxima performance
-// Removidos: GuildVoiceStates (não necessário para bot de economia)
+// Gateway Intents necessários para todas as funcionalidades do bot
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,              // 1 << 0 - Gerenciamento de servidores
         GatewayIntentBits.GuildMembers,        // 1 << 1 - Rastreamento de membros (Privilegiado)
         GatewayIntentBits.GuildMessages,       // 1 << 9 - Processamento de mensagens
         GatewayIntentBits.MessageContent,      // 1 << 15 - Acesso ao conteúdo (Privilegiado)
-        GatewayIntentBits.DirectMessages       // 1 << 12 - Suporte a DMs
+        GatewayIntentBits.DirectMessages,      // 1 << 12 - Suporte a DMs
+        GatewayIntentBits.GuildVoiceStates     // 1 << 7 - Necessário para o sistema de calls temporárias
     ]
 });
 

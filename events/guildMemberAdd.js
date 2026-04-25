@@ -11,7 +11,7 @@ module.exports = {
             const guild = member.guild;
             logger.info(`Novo membro: ${member.user.username} entrou em ${guild.name}`);
 
-            // --- NOVO: Boas-vindas via DM ---
+            // --- Boas-vindas via DM (try/catch corretamente aninhado) ---
             try {
                 const dmWelcomeEmbed = new EmbedBuilder()
                     .setTitle(`Bem-vindo(a) ao ${guild.name}!`)
@@ -19,18 +19,17 @@ module.exports = {
                     .setColor(0x00FF00)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
+                await member.send({ embeds: [dmWelcomeEmbed] });
+                logger.info(`Mensagem de boas-vindas enviada para a DM de ${member.user.tag}`);
+            } catch (dmError) {
+                logger.warn(`Não foi possível enviar DM de boas-vindas para ${member.user.tag}: ${dmError.message}`);
+            }
+            // --------------------------------
 
-            await member.send({ embeds: [dmWelcomeEmbed] });
-            logger.info(`Mensagem de boas-vindas enviada para a DM de ${member.user.tag}`);
-        } catch (dmError) {
-            logger.warn(`Não foi possível enviar DM de boas-vindas para ${member.user.tag}: ${dmError.message}`);
-        }
-        // --------------------------------
+            // Enviar log de entrada para o canal de logs
+            await discordLogger.logJoin(member);
 
-        // Enviar log de entrada para o canal de logs
-        await discordLogger.logJoin(member);
-
-        // 1. Buscar configurações do servidor
+            // 1. Buscar configurações do servidor
             const config = await getGuildConfig(guild.id);
 
             // 2. Verificar se o bot está ativado
@@ -48,7 +47,7 @@ module.exports = {
             // 4. Buscar o canal
             let channel;
             try {
-                channel = guild.channels.cache.get(config.welcomeChannelId) || 
+                channel = guild.channels.cache.get(config.welcomeChannelId) ||
                           await guild.channels.fetch(config.welcomeChannelId);
             } catch (error) {
                 logger.error(`Canal de boas-vindas não encontrado em ${guild.name}:`, error.message);
@@ -77,7 +76,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setTitle(`🎉 Bem-vindo ao ${guild.name}!`)
                 .setDescription(welcomeMessage)
-                .setColor(0x00ff00) // Verde
+                .setColor(0x00ff00)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: 'Usuário', value: member.user.username, inline: true },
@@ -98,10 +97,10 @@ module.exports = {
                 logger.error(`Erro ao registrar log de entrada:`, logError.message);
             }
 
-            // 9. Aplicar cargo de verificação se configurado
+            // 10. Aplicar cargo de verificação se configurado
             if (config.verifyRoleId) {
                 try {
-                    const role = guild.roles.cache.get(config.verifyRoleId) || 
+                    const role = guild.roles.cache.get(config.verifyRoleId) ||
                                  await guild.roles.fetch(config.verifyRoleId);
                     if (role) {
                         await member.roles.add(role);
